@@ -126,8 +126,8 @@ def load_fixture_recipes(conn: sqlite3.Connection, path: Path = FIXTURE_RECIPES_
         for recipe in recipes:
             (ids[recipe["key"]],) = conn.execute(
                 """
-                INSERT INTO recipes (locator, title_original, servings, prep_min, total_min, status)
-                VALUES (?, ?, ?, ?, ?, 'ok') RETURNING id
+                INSERT INTO recipes (locator, title_original, servings, prep_min, total_min, produces_id, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'ok') RETURNING id
                 """,
                 (
                     f"fixture:{recipe['key']}",
@@ -135,6 +135,7 @@ def load_fixture_recipes(conn: sqlite3.Connection, path: Path = FIXTURE_RECIPES_
                     recipe.get("servings"),
                     recipe.get("prep_min"),
                     recipe.get("total_min"),
+                    entry_id(conn, "ingredient", recipe["produces"]) if "produces" in recipe else None,
                 ),
             ).fetchone()
         for recipe in recipes:

@@ -319,6 +319,11 @@ aliases.en = ["spaghetti", "penne"]
 aliases.es-MX = ["espagueti"]
 
 [[ingredient]]
+en = "pesto"
+es-MX = "pesto"
+aliases.en = ["basil pesto", "store-bought pesto"]
+
+[[ingredient]]
 en = "honey"
 es-MX = "miel"
 aliases.es-MX = ["miel de abeja"]

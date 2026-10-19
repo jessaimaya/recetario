@@ -5,6 +5,7 @@
 # or several in `lines`. A line has `entry` (English vocabulary name), `sub_recipe` (a recipe key) or
 # `unresolved = true`. `alt` puts lines of the same recipe in one OR-group.
 # Equipment item: `entry`, optional `optional`, `alt`, `provenance` (listed | inferred, default inferred).
+# `produces` names the ingredient a recipe makes, so having that ingredient also satisfies it as a sub-recipe.
 
 [[recipe]]
 key = "huevos-a-la-mexicana"
@@ -127,8 +128,9 @@ equipment = [{ entry = "pot" }, { entry = "skillet" }]
 
 [[recipe]]
 key = "pesto"
-covers = "ingredient OR-group without staples kept; equipment OR-group"
+covers = "ingredient OR-group without staples kept; equipment OR-group; produces an ingredient"
 title = "Pesto de albahaca y nuez de Castilla"
+produces = "pesto"
 servings = 4
 prep_min = 10
 total_min = 10
@@ -147,7 +149,7 @@ equipment = [{ entry = "blender", alt = 1 }, { entry = "food processor", alt = 1
 
 [[recipe]]
 key = "pasta-al-pesto"
-covers = "sub-recipe expanded (ingredients and equipment); optional line dropped"
+covers = "sub-recipe line (pesto: have it, or make it); optional line dropped"
 title = "Pasta al pesto"
 servings = 2
 total_min = 20

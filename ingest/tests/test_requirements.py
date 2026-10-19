@@ -6,7 +6,7 @@ import pytest
 
 from recetario_ingest import seed
 
-I, E = "ingredient", "equipment"
+I, E, R = "ingredient", "equipment", "recipe"
 
 EXPECTED = {
     "huevos-a-la-mexicana": [(I, {"egg"}), (I, {"tomato"}), (I, {"onion"}), (I, {"serrano pepper"})],
@@ -21,10 +21,7 @@ EXPECTED = {
         (I, {"basil"}), (I, {"walnut", "pecan"}), (I, {"parmesan cheese"}), (I, {"garlic"}),
         (E, {"blender", "food processor"}),
     ],
-    "pasta-al-pesto": [
-        (I, {"pasta"}), (I, {"basil"}), (I, {"walnut", "pecan"}), (I, {"parmesan cheese"}), (I, {"garlic"}),
-        (E, {"blender", "food processor"}),
-    ],
+    "pasta-al-pesto": [(I, {"pasta"}), (R, {"pesto"})],
     "licuado-de-platano": [(I, {"banana"}), (I, {"milk"}), (I, {"oats"}), (E, {"blender"})],
     "pepino-con-chamoy": [(I, {"cucumber"}), (I, {"lime"}), (I, {None})],
 }
@@ -34,14 +31,16 @@ def requirements(conn, recipe_id):
     groups: dict[tuple[str, str], set] = {}
     rows = conn.execute(
         """
-        SELECT r.kind, r.req_key, e.name_en
-        FROM recipe_requirements AS r LEFT JOIN vocab_entries AS e ON e.id = r.entry_id
+        SELECT r.kind, r.req_key, coalesce(e.name_en, substr(s.locator, length('fixture:') + 1)) AS name
+        FROM recipe_requirements AS r
+        LEFT JOIN vocab_entries AS e ON e.id = r.entry_id
+        LEFT JOIN recipes AS s ON s.id = r.sub_recipe_id
         WHERE r.recipe_id = ?
         """,
         (recipe_id,),
     )
     for row in rows:
-        groups.setdefault((row["kind"], row["req_key"]), set()).add(row["name_en"])
+        groups.setdefault((row["kind"], row["req_key"]), set()).add(row["name"])
     return sorted(((kind, frozenset(names)) for (kind, _), names in groups.items()), key=repr)
 
 
@@ -78,6 +77,20 @@ def test_sub_recipe_line_cannot_be_an_alternative(conn, recipe_ids):
             "INSERT INTO recipe_lines (raw_line_id, sub_recipe_id, alt_group) VALUES (?, ?, 1)",
             (raw_line_id, recipe_ids["pesto"]),
         )
+
+
+def test_recipe_can_produce_an_ingredient(conn, recipe_ids):
+    row = conn.execute(
+        "SELECT e.name_en FROM recipes AS r JOIN vocab_entries AS e ON e.id = r.produces_id WHERE r.id = ?",
+        (recipe_ids["pesto"],),
+    ).fetchone()
+    assert row["name_en"] == "pesto"
+
+
+def test_recipe_product_must_be_an_ingredient(conn, recipe_ids):
+    blender = seed.entry_id(conn, "equipment", "blender")
+    with pytest.raises(sqlite3.IntegrityError, match="must reference an ingredient"):
+        conn.execute("UPDATE recipes SET produces_id = ? WHERE id = ?", (blender, recipe_ids["pesto"]))
 
 
 def test_recipe_line_must_reference_an_ingredient(conn, recipe_ids):
