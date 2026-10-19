@@ -1,0 +1,189 @@
+# Ten hand-written recipes (original, not from any book) used by the tests on both sides.
+# Each one covers a case of the requirements view; `covers` says which.
+#
+# Ingredient item: `text` is the raw line. Either give one line inline (entry/qty/unit/prep/optional/alt)
+# or several in `lines`. A line has `entry` (English vocabulary name), `sub_recipe` (a recipe key) or
+# `unresolved = true`. `alt` puts lines of the same recipe in one OR-group.
+# Equipment item: `entry`, optional `optional`, `alt`, `provenance` (listed | inferred, default inferred).
+
+[[recipe]]
+key = "huevos-a-la-mexicana"
+covers = "one raw line -> two staple lines; basic equipment dropped"
+title = "Huevos a la mexicana"
+servings = 2
+prep_min = 5
+total_min = 15
+ingredients = [
+  { text = "4 huevos", entry = "egg", qty = 4 },
+  { text = "1 jitomate picado", entry = "tomato", qty = 1, prep = "picado" },
+  { text = "1/4 de cebolla picada", entry = "onion", qty = 0.25, prep = "picada" },
+  { text = "1 chile serrano picado", entry = "serrano pepper", qty = 1, prep = "picado" },
+  { text = "sal y pimienta al gusto", lines = [{ entry = "salt" }, { entry = "black pepper" }] },
+]
+steps = [
+  "Acitrona la cebolla, el jitomate y el chile en un sartén con poco aceite.",
+  "Agrega los huevos batidos y mueve hasta que cuajen.",
+  "Sazona con sal y pimienta.",
+]
+equipment = [{ entry = "skillet" }]
+
+[[recipe]]
+key = "guacamole"
+covers = "optional ingredient and optional equipment dropped"
+title = "Guacamole sencillo"
+servings = 4
+prep_min = 10
+total_min = 10
+ingredients = [
+  { text = "2 aguacates", entry = "avocado", qty = 2 },
+  { text = "1 jitomate picado", entry = "tomato", qty = 1, prep = "picado" },
+  { text = "1/4 de cebolla picada", entry = "onion", qty = 0.25, prep = "picada" },
+  { text = "jugo de 1 limón", entry = "lime", qty = 1, prep = "jugo" },
+  { text = "cilantro al gusto (opcional)", entry = "cilantro", optional = true },
+  { text = "sal al gusto", entry = "salt" },
+]
+steps = [
+  "Machaca los aguacates.",
+  "Mezcla con el jitomate, la cebolla, el limón y la sal.",
+]
+equipment = [{ entry = "molcajete", optional = true, provenance = "listed" }, { entry = "bowl" }]
+
+[[recipe]]
+key = "calabacitas-al-horno"
+covers = "non-basic equipment required; attributes with provenance"
+title = "Calabacitas al horno con parmesano"
+servings = 2
+prep_min = 5
+total_min = 25
+ingredients = [
+  { text = "3 calabacitas en rodajas", entry = "zucchini", qty = 3, prep = "en rodajas" },
+  { text = "1 cda de aceite de oliva", entry = "olive oil", qty = 1, unit = "cda" },
+  { text = "1/4 taza de queso parmesano rallado", entry = "parmesan cheese", qty = 0.25, unit = "taza", prep = "rallado" },
+  { text = "1/2 cdita de ajo en polvo", entry = "garlic powder", qty = 0.5, unit = "cdita" },
+]
+steps = [
+  "Precalienta el horno a 200 °C.",
+  "Mezcla las calabacitas con el aceite y el ajo en polvo, extiéndelas en una charola.",
+  "Cubre con parmesano y hornea 20 minutos.",
+]
+equipment = [{ entry = "oven" }, { entry = "baking sheet" }]
+attributes = [
+  { key = "calories_kcal", value = "120", per = "serving", provenance = "manual" },
+  { key = "protein_g", value = "6", per = "serving", provenance = "manual" },
+]
+
+[[recipe]]
+key = "papas-crujientes"
+covers = "equipment OR-group (air fryer or oven)"
+title = "Papas crujientes con páprika"
+servings = 2
+prep_min = 5
+total_min = 30
+ingredients = [
+  { text = "2 papas en gajos", entry = "potato", qty = 2, prep = "en gajos" },
+  { text = "1 cda de aceite", entry = "oil", qty = 1, unit = "cda" },
+  { text = "1 cdita de páprika", entry = "paprika", qty = 1, unit = "cdita" },
+  { text = "sal al gusto", entry = "salt" },
+]
+steps = [
+  "Mezcla las papas con el aceite, la páprika y la sal.",
+  "Cocina en la freidora de aire a 200 °C por 20 minutos, o en el horno a 220 °C por 25.",
+]
+equipment = [{ entry = "air fryer", alt = 1 }, { entry = "oven", alt = 1 }]
+
+[[recipe]]
+key = "quesadillas"
+covers = "generic parent ingredient (queso); basic equipment"
+title = "Quesadillas"
+servings = 1
+total_min = 10
+ingredients = [
+  { text = "3 tortillas de maíz", entry = "corn tortilla", qty = 3 },
+  { text = "100 g de queso", entry = "cheese", qty = 100, unit = "g" },
+]
+steps = ["Calienta las tortillas en el comal, rellena con queso y dobla hasta que se derrita."]
+equipment = [{ entry = "comal" }]
+
+[[recipe]]
+key = "ejotes-salteados"
+covers = "ingredient OR-group containing a staple is dropped entirely"
+title = "Ejotes salteados con ajo"
+servings = 2
+prep_min = 5
+total_min = 15
+ingredients = [
+  { text = "250 g de ejotes", entry = "green beans", qty = 250, unit = "g" },
+  { text = "1 cda de mantequilla o aceite de oliva", lines = [
+    { entry = "butter", qty = 1, unit = "cda", alt = 1 },
+    { entry = "olive oil", qty = 1, unit = "cda", alt = 1 },
+  ] },
+  { text = "2 dientes de ajo picados", entry = "garlic", qty = 2, prep = "picados" },
+]
+steps = [
+  "Hierve los ejotes 3 minutos y escúrrelos.",
+  "Saltéalos en un sartén con la mantequilla o el aceite y el ajo.",
+]
+equipment = [{ entry = "pot" }, { entry = "skillet" }]
+
+[[recipe]]
+key = "pesto"
+covers = "ingredient OR-group without staples kept; equipment OR-group"
+title = "Pesto de albahaca y nuez de Castilla"
+servings = 4
+prep_min = 10
+total_min = 10
+ingredients = [
+  { text = "2 tazas de albahaca", entry = "basil", qty = 2, unit = "taza" },
+  { text = "1/3 de taza de nuez de Castilla o nuez", lines = [
+    { entry = "walnut", qty = 0.33, unit = "taza", alt = 1 },
+    { entry = "pecan", qty = 0.33, unit = "taza", alt = 1 },
+  ] },
+  { text = "1/2 taza de queso parmesano", entry = "parmesan cheese", qty = 0.5, unit = "taza" },
+  { text = "1 diente de ajo", entry = "garlic", qty = 1 },
+  { text = "1/2 taza de aceite de oliva", entry = "olive oil", qty = 0.5, unit = "taza" },
+]
+steps = ["Muele todo en la licuadora o el procesador hasta tener una pasta."]
+equipment = [{ entry = "blender", alt = 1 }, { entry = "food processor", alt = 1 }]
+
+[[recipe]]
+key = "pasta-al-pesto"
+covers = "sub-recipe expanded (ingredients and equipment); optional line dropped"
+title = "Pasta al pesto"
+servings = 2
+total_min = 20
+ingredients = [
+  { text = "200 g de pasta", entry = "pasta", qty = 200, unit = "g" },
+  { text = "1/2 taza de pesto (ver receta)", sub_recipe = "pesto", qty = 0.5, unit = "taza" },
+  { text = "parmesano para servir (opcional)", entry = "parmesan cheese", optional = true },
+]
+steps = ["Cuece la pasta, escúrrela y mézclala con el pesto."]
+equipment = [{ entry = "pot" }]
+
+[[recipe]]
+key = "licuado-de-platano"
+covers = "plain requirements plus required non-basic equipment"
+title = "Licuado de plátano y avena"
+servings = 1
+total_min = 5
+ingredients = [
+  { text = "1 plátano", entry = "banana", qty = 1 },
+  { text = "1 taza de leche", entry = "milk", qty = 1, unit = "taza" },
+  { text = "2 cdas de avena", entry = "oats", qty = 2, unit = "cda" },
+  { text = "canela al gusto (opcional)", entry = "cinnamon", optional = true },
+]
+steps = ["Licúa todo hasta que quede terso."]
+equipment = [{ entry = "blender" }]
+
+[[recipe]]
+key = "pepino-con-chamoy"
+covers = "unresolved line shows up as entry_id NULL"
+title = "Pepino con limón y chamoy"
+servings = 2
+total_min = 5
+ingredients = [
+  { text = "2 pepinos en bastones", entry = "cucumber", qty = 2, prep = "en bastones" },
+  { text = "jugo de 1 limón", entry = "lime", qty = 1, prep = "jugo" },
+  { text = "2 cdas de chamoy", unresolved = true, qty = 2, unit = "cda" },
+]
+steps = ["Corta los pepinos, báñalos con limón y chamoy."]
+equipment = [{ entry = "knife" }]

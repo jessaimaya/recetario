@@ -1,0 +1,521 @@
+# Starter vocabulary. Entries are keyed by their English name; `es-MX` is the display label.
+# Rules: see the naming guide (lowercase, singular, no brand, no preparation; es-MX market words).
+# Loading is idempotent: entries are matched by (kind, en) and updated in place.
+# Availability and ownership are personal, so the seed never sets them.
+
+# --- Ingredients -------------------------------------------------------------
+
+[[ingredient]]
+en = "salt"
+es-MX = "sal"
+staple = true
+aliases.en = ["sea salt", "kosher salt", "coarse sea salt"]
+aliases.es-MX = ["sal de mar", "sal gruesa"]
+
+[[ingredient]]
+en = "black pepper"
+es-MX = "pimienta negra"
+staple = true
+aliases.en = ["pepper", "ground black pepper", "freshly ground black pepper"]
+aliases.es-MX = ["pimienta"]
+
+[[ingredient]]
+en = "water"
+es-MX = "agua"
+staple = true
+
+[[ingredient]]
+en = "oil"
+es-MX = "aceite"
+staple = true
+aliases.en = ["cooking oil", "cooking spray"]
+aliases.es-MX = ["aceite en aerosol"]
+
+[[ingredient]]
+en = "olive oil"
+es-MX = "aceite de oliva"
+parent = "oil"
+staple = true
+aliases.en = ["extra virgin olive oil"]
+aliases.es-MX = ["aceite de oliva extra virgen"]
+
+[[ingredient]]
+en = "vegetable oil"
+es-MX = "aceite vegetal"
+parent = "oil"
+staple = true
+
+[[ingredient]]
+en = "egg"
+es-MX = "huevo"
+aliases.en = ["eggs"]
+aliases.es-MX = ["huevos"]
+
+[[ingredient]]
+en = "tomato"
+es-MX = "jitomate"
+aliases.en = ["tomatoes"]
+aliases.es-MX = ["jitomates", "tomate rojo", "tomate bola"]
+
+[[ingredient]]
+en = "tomatillo"
+es-MX = "tomate verde"
+aliases.en = ["tomatillos"]
+aliases.es-MX = ["tomatillo", "tomates verdes"]
+
+[[ingredient]]
+en = "onion"
+es-MX = "cebolla"
+aliases.en = ["onions", "white onion"]
+aliases.es-MX = ["cebolla blanca"]
+
+[[ingredient]]
+en = "green onion"
+es-MX = "cebolla cambray"
+aliases.en = ["scallion", "scallions", "spring onion"]
+aliases.es-MX = ["cebollita cambray"]
+
+[[ingredient]]
+en = "garlic"
+es-MX = "ajo"
+aliases.en = ["garlic clove", "cloves garlic"]
+aliases.es-MX = ["diente de ajo", "dientes de ajo"]
+
+[[ingredient]]
+en = "garlic powder"
+es-MX = "ajo en polvo"
+
+[[ingredient]]
+en = "chili pepper"
+es-MX = "chile"
+aliases.en = ["chile", "hot pepper"]
+
+[[ingredient]]
+en = "serrano pepper"
+es-MX = "chile serrano"
+parent = "chili pepper"
+aliases.en = ["serrano chile", "serrano"]
+
+[[ingredient]]
+en = "jalapeño pepper"
+es-MX = "chile jalapeño"
+parent = "chili pepper"
+aliases.en = ["jalapeno", "jalapeño", "jalapeno pepper"]
+
+[[ingredient]]
+en = "bell pepper"
+es-MX = "pimiento morrón"
+aliases.en = ["red bell pepper", "green bell pepper"]
+aliases.es-MX = ["pimiento", "chile morrón"]
+
+[[ingredient]]
+en = "avocado"
+es-MX = "aguacate"
+aliases.en = ["avocados", "hass avocado"]
+
+[[ingredient]]
+en = "lime"
+es-MX = "limón"
+aliases.en = ["limes", "lime juice"]
+aliases.es-MX = ["limón verde", "jugo de limón"]
+
+[[ingredient]]
+en = "lemon"
+es-MX = "limón amarillo"
+aliases.en = ["lemons", "lemon juice"]
+aliases.es-MX = ["limón real"]
+
+[[ingredient]]
+en = "cilantro"
+es-MX = "cilantro"
+aliases.en = ["coriander leaves", "fresh cilantro", "fresh coriander"]
+
+[[ingredient]]
+en = "coriander seed"
+es-MX = "semilla de cilantro"
+aliases.en = ["coriander seeds", "ground coriander"]
+aliases.es-MX = ["cilantro en grano"]
+
+[[ingredient]]
+en = "zucchini"
+es-MX = "calabacita"
+aliases.en = ["zucchinis", "courgette"]
+aliases.es-MX = ["calabacitas", "calabacín"]
+
+[[ingredient]]
+en = "potato"
+es-MX = "papa"
+aliases.en = ["potatoes", "russet potato", "russet potatoes"]
+aliases.es-MX = ["papas", "patata"]
+
+[[ingredient]]
+en = "sweet potato"
+es-MX = "camote"
+aliases.en = ["sweet potatoes", "yam"]
+aliases.es-MX = ["camotes", "boniato", "batata"]
+
+[[ingredient]]
+en = "green beans"
+es-MX = "ejote"
+aliases.en = ["green bean", "string beans"]
+aliases.es-MX = ["ejotes", "judía verde"]
+
+[[ingredient]]
+en = "peas"
+es-MX = "chícharo"
+aliases.en = ["green peas", "frozen peas"]
+aliases.es-MX = ["chícharos", "guisante"]
+
+[[ingredient]]
+en = "beet"
+es-MX = "betabel"
+aliases.en = ["beets", "beetroot"]
+aliases.es-MX = ["remolacha"]
+
+[[ingredient]]
+en = "corn on the cob"
+es-MX = "elote"
+aliases.en = ["ear of corn", "ears fresh corn", "fresh corn"]
+aliases.es-MX = ["elotes", "mazorca"]
+
+[[ingredient]]
+en = "carrot"
+es-MX = "zanahoria"
+aliases.en = ["carrots"]
+aliases.es-MX = ["zanahorias"]
+
+[[ingredient]]
+en = "cucumber"
+es-MX = "pepino"
+aliases.en = ["cucumbers"]
+aliases.es-MX = ["pepinos"]
+
+[[ingredient]]
+en = "basil"
+es-MX = "albahaca"
+aliases.en = ["fresh basil", "basil leaves"]
+
+[[ingredient]]
+en = "pecan"
+es-MX = "nuez"
+aliases.en = ["pecans"]
+aliases.es-MX = ["nuez pecana", "nueces"]
+
+[[ingredient]]
+en = "walnut"
+es-MX = "nuez de Castilla"
+aliases.en = ["walnuts"]
+
+[[ingredient]]
+en = "apricot"
+es-MX = "chabacano"
+aliases.en = ["apricots"]
+aliases.es-MX = ["albaricoque"]
+
+[[ingredient]]
+en = "peach"
+es-MX = "durazno"
+aliases.en = ["peaches"]
+aliases.es-MX = ["melocotón"]
+
+[[ingredient]]
+en = "banana"
+es-MX = "plátano"
+aliases.en = ["bananas"]
+aliases.es-MX = ["plátanos", "plátano tabasco"]
+
+[[ingredient]]
+en = "apple"
+es-MX = "manzana"
+aliases.en = ["apples"]
+aliases.es-MX = ["manzanas"]
+
+[[ingredient]]
+en = "cheese"
+es-MX = "queso"
+
+[[ingredient]]
+en = "parmesan cheese"
+es-MX = "queso parmesano"
+parent = "cheese"
+aliases.en = ["parmesan", "grated parmesan cheese"]
+aliases.es-MX = ["parmesano"]
+
+[[ingredient]]
+en = "cheddar cheese"
+es-MX = "queso cheddar"
+parent = "cheese"
+aliases.en = ["cheddar", "shredded cheddar cheese"]
+
+[[ingredient]]
+en = "cotija cheese"
+es-MX = "queso cotija"
+parent = "cheese"
+aliases.en = ["cotija", "crumbled cotija cheese"]
+
+[[ingredient]]
+en = "oaxaca cheese"
+es-MX = "queso Oaxaca"
+parent = "cheese"
+aliases.es-MX = ["quesillo"]
+
+[[ingredient]]
+en = "milk"
+es-MX = "leche"
+
+[[ingredient]]
+en = "butter"
+es-MX = "mantequilla"
+aliases.en = ["unsalted butter", "salted butter"]
+
+[[ingredient]]
+en = "sour cream"
+es-MX = "crema ácida"
+
+[[ingredient]]
+en = "heavy cream"
+es-MX = "crema para batir"
+aliases.en = ["heavy whipping cream", "whipping cream"]
+
+[[ingredient]]
+en = "oats"
+es-MX = "avena"
+aliases.en = ["rolled oats", "old-fashioned oats"]
+aliases.es-MX = ["hojuelas de avena"]
+
+[[ingredient]]
+en = "cinnamon"
+es-MX = "canela"
+aliases.en = ["ground cinnamon"]
+aliases.es-MX = ["canela molida"]
+
+[[ingredient]]
+en = "paprika"
+es-MX = "páprika"
+aliases.es-MX = ["pimentón"]
+
+[[ingredient]]
+en = "brown sugar"
+es-MX = "azúcar mascabado"
+aliases.en = ["light brown sugar", "dark brown sugar"]
+aliases.es-MX = ["azúcar morena"]
+
+[[ingredient]]
+en = "cornstarch"
+es-MX = "fécula de maíz"
+aliases.en = ["corn starch", "cornflour"]
+aliases.es-MX = ["maicena", "maizena"]
+
+[[ingredient]]
+en = "corn tortilla"
+es-MX = "tortilla de maíz"
+aliases.en = ["corn tortillas"]
+aliases.es-MX = ["tortillas de maíz", "tortilla", "tortillas"]
+
+[[ingredient]]
+en = "pasta"
+es-MX = "pasta"
+aliases.en = ["spaghetti", "penne"]
+aliases.es-MX = ["espagueti"]
+
+[[ingredient]]
+en = "honey"
+es-MX = "miel"
+aliases.es-MX = ["miel de abeja"]
+
+# --- Equipment ---------------------------------------------------------------
+
+[[equipment]]
+en = "stove"
+es-MX = "estufa"
+basic = true
+aliases.en = ["stovetop", "burner"]
+
+[[equipment]]
+en = "skillet"
+es-MX = "sartén"
+basic = true
+aliases.en = ["frying pan", "pan", "nonstick skillet"]
+
+[[equipment]]
+en = "pot"
+es-MX = "olla"
+basic = true
+aliases.en = ["saucepan", "stockpot"]
+aliases.es-MX = ["cacerola"]
+
+[[equipment]]
+en = "knife"
+es-MX = "cuchillo"
+basic = true
+
+[[equipment]]
+en = "cutting board"
+es-MX = "tabla para picar"
+basic = true
+
+[[equipment]]
+en = "bowl"
+es-MX = "tazón"
+basic = true
+aliases.en = ["mixing bowl"]
+aliases.es-MX = ["bol"]
+
+[[equipment]]
+en = "baking sheet"
+es-MX = "charola para hornear"
+basic = true
+aliases.en = ["sheet pan", "baking tray"]
+
+[[equipment]]
+en = "comal"
+es-MX = "comal"
+basic = true
+aliases.en = ["griddle"]
+
+[[equipment]]
+en = "oven"
+es-MX = "horno"
+
+[[equipment]]
+en = "air fryer"
+es-MX = "freidora de aire"
+
+[[equipment]]
+en = "pressure cooker"
+es-MX = "olla de presión"
+aliases.en = ["stovetop pressure cooker"]
+aliases.es-MX = ["olla exprés"]
+
+[[equipment]]
+en = "electric pressure cooker"
+es-MX = "olla de presión eléctrica"
+parent = "pressure cooker"
+aliases.en = ["instant pot", "multicooker"]
+
+[[equipment]]
+en = "slow cooker"
+es-MX = "olla de cocción lenta"
+aliases.en = ["crock pot", "crockpot"]
+
+[[equipment]]
+en = "blender"
+es-MX = "licuadora"
+aliases.en = ["high-speed blender"]
+
+[[equipment]]
+en = "food processor"
+es-MX = "procesador de alimentos"
+
+[[equipment]]
+en = "grill"
+es-MX = "parrilla"
+aliases.en = ["outdoor grill", "barbecue"]
+aliases.es-MX = ["asador"]
+
+[[equipment]]
+en = "microwave"
+es-MX = "microondas"
+aliases.en = ["microwave oven"]
+
+[[equipment]]
+en = "steamer"
+es-MX = "vaporera"
+aliases.en = ["steamer basket"]
+
+[[equipment]]
+en = "mixer"
+es-MX = "batidora"
+aliases.en = ["stand mixer", "hand mixer", "electric mixer"]
+
+[[equipment]]
+en = "molcajete"
+es-MX = "molcajete"
+aliases.en = ["mortar and pestle"]
+
+# --- Attribute keys ----------------------------------------------------------
+
+[[attribute_key]]
+en = "servings"
+es-MX = "Porciones"
+type = "number"
+column = "servings"
+
+[[attribute_key]]
+en = "prep_min"
+es-MX = "Tiempo de preparación"
+type = "duration"
+unit = "min"
+column = "prep_min"
+aliases.en = ["prep", "prep time", "preparation time"]
+
+[[attribute_key]]
+en = "cook_min"
+es-MX = "Tiempo de cocción"
+type = "duration"
+unit = "min"
+aliases.en = ["cook", "cook time", "cooking time", "time to cook"]
+
+[[attribute_key]]
+en = "total_min"
+es-MX = "Tiempo total"
+type = "duration"
+unit = "min"
+column = "total_min"
+aliases.en = ["ready in", "total time"]
+
+[[attribute_key]]
+en = "calories_kcal"
+es-MX = "Calorías (kcal)"
+type = "number"
+unit = "kcal"
+aliases.en = ["calories"]
+
+[[attribute_key]]
+en = "carbs_g"
+es-MX = "Carbohidratos (g)"
+type = "number"
+unit = "g"
+aliases.en = ["carbs", "total carbohydrate", "carbohydrates"]
+
+[[attribute_key]]
+en = "protein_g"
+es-MX = "Proteína (g)"
+type = "number"
+unit = "g"
+aliases.en = ["protein"]
+
+[[attribute_key]]
+en = "fat_g"
+es-MX = "Grasa (g)"
+type = "number"
+unit = "g"
+aliases.en = ["fat", "total fat"]
+
+[[attribute_key]]
+en = "sodium_mg"
+es-MX = "Sodio (mg)"
+type = "number"
+unit = "mg"
+aliases.en = ["sodium"]
+
+[[attribute_key]]
+en = "cholesterol_mg"
+es-MX = "Colesterol (mg)"
+type = "number"
+unit = "mg"
+aliases.en = ["cholesterol"]
+
+[[attribute_key]]
+en = "fiber_g"
+es-MX = "Fibra (g)"
+type = "number"
+unit = "g"
+aliases.en = ["fiber", "dietary fiber"]
+
+[[attribute_key]]
+en = "sugar_g"
+es-MX = "Azúcares (g)"
+type = "number"
+unit = "g"
+aliases.en = ["sugar", "sugars", "total sugars"]
