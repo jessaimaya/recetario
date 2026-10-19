@@ -1,0 +1,21 @@
+[project]
+name = "recetario-ingest"
+version = "0.1.0"
+description = "Ingest cookbooks into a recetario database"
+authors = [
+    { name = "jessai", email = "maya.jessai@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+recetario-ingest = "recetario_ingest:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
