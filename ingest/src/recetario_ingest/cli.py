@@ -4,7 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from recetario_ingest import db, seed
+from recetario_ingest import config as config_module
+from recetario_ingest import db, ingest, seed
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -18,10 +19,28 @@ def main(argv: list[str] | None = None) -> int:
     init.add_argument("--fresh", action="store_true", help="delete the database file first")
     init.add_argument("--fixtures", action="store_true", help="also load the hand-written test recipes")
 
+    run = commands.add_parser("ingest", help="ingest every book in the books folder; safe to re-run")
+    run.add_argument("--config", type=Path, help="config file (default: recetario.toml in the repo, if it exists)")
+    run.add_argument("--dry-run", action="store_true", help="count segments and estimate tokens and cost; write nothing, call nothing")
+    run.add_argument("--force-stage", choices=ingest.STAGE_NAMES, help="re-run this stage and the ones after it")
+
     args = parser.parse_args(argv)
     if args.command == "db" and args.db_command == "init":
         return _db_init(args.db, fresh=args.fresh, fixtures=args.fixtures)
+    if args.command == "ingest":
+        return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage)
     return 1
+
+
+def _ingest(config_path: Path | None, dry_run: bool, force_stage: str | None) -> int:
+    try:
+        config = config_module.load_config(config_path)
+    except config_module.ConfigError as error:
+        print(error, file=sys.stderr)
+        return 2
+    report = ingest.ingest(config, dry_run=dry_run, force_stage=force_stage)
+    print(ingest.format_report(report, config))
+    return 1 if any(book.outcome == "failed" for book in report.books) else 0
 
 
 def _db_init(path: Path, fresh: bool, fixtures: bool) -> int:

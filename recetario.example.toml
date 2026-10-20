@@ -1,0 +1,15 @@
+# Copy to recetario.toml (gitignored) and edit. Every key is optional; relative paths resolve against this file.
+books_dir = "local/books"
+db_path = "local/recetario.db"
+artifacts_dir = "local/artifacts"
+locale = "es-MX"
+
+[llm]
+provider = "anthropic"
+# model = ""          # chosen at M4, once extraction exists
+# max_cost_usd = 5.0  # spending cap per run
+
+# USD per million tokens, copied from the provider's price page. Needed for the --dry-run cost estimate.
+# [pricing."<model id>"]
+# input_per_mtok = 0.0
+# output_per_mtok = 0.0

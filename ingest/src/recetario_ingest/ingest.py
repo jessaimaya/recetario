@@ -1,0 +1,167 @@
+"""The `ingest` command: find books, register them and run each through the stages. Re-running is safe."""
+
+import json
+import sqlite3
+import tempfile
+import time
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+
+from recetario_ingest import db, epub, sources, stages
+from recetario_ingest.artifacts import ArtifactStore
+from recetario_ingest.config import Config
+from recetario_ingest.cost import cost_usd, estimate_tokens
+from recetario_ingest.llm.adapter import LlmAdapter
+from recetario_ingest.llm.prompts import PromptRegistry
+from recetario_ingest.pipeline import Context, Stage, run_stages
+
+STAGE_NAMES = ("text", "segment")
+
+
+@dataclass
+class BookReport:
+    file: str
+    outcome: str  # ingested | already done | skipped | failed
+    detail: str = ""
+    source_id: int | None = None
+    kinds: dict[str, int] = field(default_factory=dict)  # segment kind -> count
+    units_run: int = 0
+    units_cached: int = 0
+    tokens_in: int = 0
+    tokens_out: int = 0
+    web_searches: int = 0
+    cost_usd: float = 0.0
+    seconds: float = 0.0
+    text_tokens: int = 0  # recipe text, which is what extraction will send
+    failures: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RunReport:
+    dry_run: bool
+    books: list[BookReport] = field(default_factory=list)
+    estimated_cost_usd: float | None = None  # dry run only; None when the config has no price for the model
+
+
+def scan(books_dir: Path) -> list[Path]:
+    return sorted(path for path in books_dir.iterdir() if path.suffix.lower() in (".epub", ".pdf")) if books_dir.is_dir() else []
+
+
+def ingest(
+    config: Config,
+    *,
+    dry_run: bool = False,
+    force_stage: str | None = None,
+    llm: LlmAdapter | None = None,
+    prompts: PromptRegistry | None = None,
+) -> RunReport:
+    """Ingest every book in the books folder. A dry run does the free, local stages in a throwaway database and
+    artifact folder, never calls the model, and leaves nothing behind."""
+    if force_stage is not None and force_stage not in STAGE_NAMES:
+        raise ValueError(f"unknown stage {force_stage!r}; stages are {', '.join(STAGE_NAMES)}")
+    report = RunReport(dry_run=dry_run)
+    prompts = prompts or PromptRegistry()
+
+    with tempfile.TemporaryDirectory() as scratch:
+        if dry_run:
+            conn, artifacts_dir, llm = db.connect(":memory:"), Path(scratch), None
+        else:
+            config.db_path.parent.mkdir(parents=True, exist_ok=True)
+            conn, artifacts_dir = db.connect(config.db_path), config.artifacts_dir
+        try:
+            db.migrate(conn)
+            for path in scan(config.books_dir):
+                report.books.append(_ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts))
+        finally:
+            conn.close()
+
+    if dry_run and config.model in config.pricing:
+        tokens = sum(book.text_tokens for book in report.books)
+        report.estimated_cost_usd = cost_usd(tokens, 0, config.pricing[config.model])
+    if not dry_run and any(book.outcome in ("ingested", "failed") for book in report.books):
+        _save_report(config.artifacts_dir, report)
+    return report
+
+
+def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -> BookReport:
+    if path.suffix.lower() != ".epub":
+        return BookReport(path.name, "skipped", "PDF books aren't supported yet")
+
+    started = time.monotonic()
+    try:
+        metadata = epub.read_metadata(path)
+    except epub.EpubError as error:
+        return BookReport(path.name, "failed", str(error))
+
+    file_hash = sources.file_sha256(path)
+    source = sources.find_by_hash(conn, file_hash)
+    if source is None:
+        other = sources.find_by_identifier(conn, metadata)
+        if other is not None:
+            detail = f"same ISBN/ASIN as source {other.id} ({other.raw_title[:40]}), but a different file; not ingested"
+            return BookReport(path.name, "skipped", detail)
+        source = sources.register(conn, file_hash, "epub", metadata)
+    elif source.status == "done" and force_stage is None:
+        return BookReport(path.name, "already done", source_id=source.id)
+
+    source = sources.set_status(conn, source, "in_progress")
+    store = ArtifactStore(artifacts_dir / source.slug)
+    ctx = Context(source, store, prompts, llm, clock=time.monotonic, force_from=force_stage)
+    pipeline: list[Stage] = [stages.TextStage(path), stages.SegmentStage()]
+    run = run_stages(conn, ctx, pipeline)
+
+    book = BookReport(
+        path.name,
+        "failed" if run.failures else "ingested",
+        source_id=source.id,
+        units_run=run.units_run,
+        units_cached=run.units_cached,
+        tokens_in=run.tokens_in,
+        tokens_out=run.tokens_out,
+        web_searches=run.web_searches,
+        cost_usd=run.cost_usd,
+        failures=run.failures,
+    )
+    if "segment" in run.stages and not run.stages["segment"].failed and run.stages["segment"].ok + run.stages["segment"].cached:
+        segments = store.read_all("segment")
+        for segment in segments:
+            book.kinds[segment["kind"]] = book.kinds.get(segment["kind"], 0) + 1
+        book.text_tokens = sum(estimate_tokens(s["text"]) for s in segments if s["kind"] == "recipe")
+    sources.set_status(conn, source, "failed" if run.failures else "done")
+    book.seconds = time.monotonic() - started
+    return book
+
+
+def _save_report(artifacts_dir: Path, report: RunReport) -> None:
+    runs = artifacts_dir / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    (runs / f"{stamp}.json").write_text(json.dumps(asdict(report), indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def format_report(report: RunReport, config: Config) -> str:
+    lines = ["dry run: nothing is written and no model is called" if report.dry_run else "ingest run"]
+    if not report.books:
+        lines.append(f"no books found in {config.books_dir}")
+    for book in report.books:
+        outcome = "would ingest" if report.dry_run and book.outcome == "ingested" else book.outcome
+        lines.append(f"\n{book.file}: {outcome}" + (f" ({book.detail})" if book.detail else ""))
+        if book.kinds:
+            recipes = book.kinds.get("recipe", 0)
+            others = ", ".join(f"{count} {kind}" for kind, count in sorted(book.kinds.items()) if kind != "recipe")
+            lines.append(f"  segments: {recipes} recipes" + (f", {others}" if others else ""))
+        if report.dry_run and book.text_tokens:
+            lines.append(f"  recipe text: ~{book.text_tokens:,} tokens (what extraction sends as input)")
+        if book.outcome in ("ingested", "failed") and not report.dry_run:
+            lines.append(
+                f"  units: {book.units_run} run, {book.units_cached} cached · "
+                f"tokens {book.tokens_in:,} in / {book.tokens_out:,} out · "
+                f"web searches {book.web_searches} · cost ${book.cost_usd:.4f} · {book.seconds:.1f}s"
+            )
+        lines += [f"  FAILED {failure}" for failure in book.failures]
+    if report.dry_run and report.books:
+        if report.estimated_cost_usd is not None:
+            lines.append(f"\nestimated input cost for extraction: ${report.estimated_cost_usd:.2f} (output not included)")
+        else:
+            lines.append("\nno price for the configured model, so no cost estimate; add [pricing.\"<model>\"] to recetario.toml")
+    return "\n".join(lines)

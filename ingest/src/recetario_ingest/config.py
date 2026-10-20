@@ -1,0 +1,72 @@
+"""The config file (recetario.toml). Every key is optional; relative paths resolve against the file's folder."""
+
+import tomllib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from recetario_ingest.cost import Pricing
+from recetario_ingest.db import REPO_ROOT
+
+DEFAULT_CONFIG_PATH = REPO_ROOT / "recetario.toml"
+
+_TOP_KEYS = {"books_dir", "db_path", "artifacts_dir", "locale", "llm", "pricing"}
+_LLM_KEYS = {"provider", "model", "max_cost_usd"}
+
+
+class ConfigError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Config:
+    books_dir: Path = REPO_ROOT / "local" / "books"
+    db_path: Path = REPO_ROOT / "local" / "recetario.db"
+    artifacts_dir: Path = REPO_ROOT / "local" / "artifacts"
+    locale: str = "es-MX"
+    provider: str = "anthropic"
+    model: str | None = None
+    max_cost_usd: float | None = None  # spending cap per run
+    pricing: dict[str, Pricing] = field(default_factory=dict)  # by model id
+
+
+def load_config(path: Path | None = None) -> Config:
+    """Read `path`, or the default recetario.toml when there is one, or fall back to the defaults."""
+    if path is None:
+        if not DEFAULT_CONFIG_PATH.exists():
+            return Config()
+        path = DEFAULT_CONFIG_PATH
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise ConfigError(f"config file not found: {path}") from error
+    except tomllib.TOMLDecodeError as error:
+        raise ConfigError(f"{path}: {error}") from error
+
+    _reject_unknown(path, "", data, _TOP_KEYS)
+    llm = data.get("llm", {})
+    _reject_unknown(path, "[llm] ", llm, _LLM_KEYS)
+    base = path.resolve().parent
+    defaults = Config()
+    return Config(
+        books_dir=base / data["books_dir"] if "books_dir" in data else defaults.books_dir,
+        db_path=base / data["db_path"] if "db_path" in data else defaults.db_path,
+        artifacts_dir=base / data["artifacts_dir"] if "artifacts_dir" in data else defaults.artifacts_dir,
+        locale=data.get("locale", defaults.locale),
+        provider=llm.get("provider", defaults.provider),
+        model=llm.get("model"),
+        max_cost_usd=llm.get("max_cost_usd"),
+        pricing={model: _pricing(path, model, prices) for model, prices in data.get("pricing", {}).items()},
+    )
+
+
+def _reject_unknown(path: Path, where: str, table: dict, allowed: set[str]) -> None:
+    unknown = sorted(set(table) - allowed)
+    if unknown:
+        raise ConfigError(f"{path}: unknown {where}key {unknown[0]!r} (allowed: {', '.join(sorted(allowed))})")
+
+
+def _pricing(path: Path, model: str, prices: dict) -> Pricing:
+    try:
+        return Pricing(float(prices["input_per_mtok"]), float(prices["output_per_mtok"]))
+    except KeyError as error:
+        raise ConfigError(f"{path}: [pricing.{model!r}] needs input_per_mtok and output_per_mtok") from error
