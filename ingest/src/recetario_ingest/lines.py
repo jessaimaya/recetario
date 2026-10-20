@@ -120,7 +120,7 @@ def parse_line(raw: str) -> ParsedLine:
         parsed.container = _tidy(container["size"])
         text = text[container.end() :]
 
-    text, parsed.unit = _take_unit(text)
+    text, parsed.unit = _take_unit(_skip_size_before_unit(text))
 
     text, brackets = _take_brackets(text)
     for bracket in brackets:
@@ -158,6 +158,14 @@ def _clean(raw: str) -> str:
 
 def _tidy(text: str) -> str:
     return " ".join(text.replace(".", "").split())
+
+
+def _skip_size_before_unit(text: str) -> str:
+    """"large head cauliflower" -> "head cauliflower": a size word in front of a unit would hide the unit."""
+    word, _, rest = text.partition(" ")
+    if word.lower() in _SIZE_WORDS and _take_unit(rest)[1]:
+        return rest
+    return text
 
 
 def _take_unit(text: str) -> tuple[str, str | None]:

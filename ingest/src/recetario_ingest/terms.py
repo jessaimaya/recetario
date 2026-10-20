@@ -12,11 +12,16 @@ _PARENTHETICAL = re.compile(r"\([^)]*\)")
 _DIMENSIONS = re.compile(r"\b\d+(?:\.\d+)?\s*[”“\"']?\s*[x×]\s*\d+(?:\.\d+)?\s*[”“\"']?|\b\d+(?:\.\d+)?[- ]?(?:qt|quart|inch|in|cup)s?\b\.?")
 _EQUIPMENT_FILLER = {"big", "large", "small", "medium", "heavy", "deep", "shallow", "preheated", "greased", "prepared", "extra", "sized"}
 _NOT_PLURAL = {"asparagus", "hummus", "couscous", "molasses", "swiss", "citrus", "watercress", "cress", "grits", "oats", "bass", "lemongrass", "glass", "brass", "series"}
+# state words that don't change what you buy (NAMING.md: one entry, the form is preparation); "dried" stays
+_INGREDIENT_FILLER = {"fresh", "frozen", "freshly", "raw", "uncooked"}
+_IRREGULAR_PLURALS = {"leaves": "leaf", "loaves": "loaf", "halves": "half", "knives": "knife"}
 _ES_ENDINGS = ("ches", "shes", "sses", "xes", "zes")
 
 
 def singular(word: str) -> str:
     """Conservative English singular: "potatoes" -> "potato", "cherries" -> "cherry", "glass" stays."""
+    if word in _IRREGULAR_PLURALS:
+        return _IRREGULAR_PLURALS[word]
     if word in _NOT_PLURAL or len(word) <= 3 or not word.endswith("s"):
         return word
     if word.endswith("ies") and len(word) > 4:
@@ -41,6 +46,9 @@ def normalize_term(kind: str, text: str) -> str:
     words = normalize(cleaned).replace("’", "'").replace("-", " ").strip(" .,;:\"'").split()
     if kind == "equipment":
         stripped = [word for word in words if word not in _EQUIPMENT_FILLER]
+        words = stripped or words
+    if kind == "ingredient":
+        stripped = [word for word in words if word not in _INGREDIENT_FILLER]
         words = stripped or words
     if words:
         words[-1] = singular(words[-1])

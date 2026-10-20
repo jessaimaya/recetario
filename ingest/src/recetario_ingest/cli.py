@@ -10,7 +10,7 @@ from pathlib import Path
 import anthropic
 
 from recetario_ingest import config as config_module
-from recetario_ingest import db, evaluate, ingest, review, seed
+from recetario_ingest import db, evaluate, evaluate_resolve, ingest, review, seed
 from recetario_ingest.cost import cost_usd, estimate_tokens
 from recetario_ingest.registry import default_prompts
 from recetario_ingest.llm.adapter import BudgetExceeded
@@ -42,6 +42,12 @@ def main(argv: list[str] | None = None) -> int:
     ev_extract.add_argument("--prompt", help="prompt version (default: the latest)")
     ev_extract.add_argument("--dry-run", action="store_true", help="count recipes and estimate input cost; call nothing")
 
+    ev_resolve = ev_commands.add_parser("resolve", help="score the resolver on golden terms (the NAMING.md trap list and more)")
+    ev_resolve.add_argument("--config", type=Path)
+    ev_resolve.add_argument("--cases", type=Path, help="folder of case files (default: evals/resolution)")
+    ev_resolve.add_argument("--model", help="model to use instead of the one in the config")
+    ev_resolve.add_argument("--prompt", help="prompt version (default: the latest)")
+
     review_parser = commands.add_parser("review", help="decide open vocabulary proposals, or spot-check auto-accepted aliases")
     review_parser.add_argument("--config", type=Path)
     review_parser.add_argument("--kind", choices=("ingredient", "equipment", "attribute_key"))
@@ -55,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
         return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage)
     if args.command == "review":
         return _review(args.config, args.kind, args.auto)
+    if args.command == "eval" and args.eval_command == "resolve":
+        return _eval_resolve(args.config, args.cases, args.prompt, args.model)
     if args.command == "eval":
         return _eval_extract(args.config, args.golden, args.prompt, args.dry_run, args.model)
     return 1
@@ -112,6 +120,37 @@ def _eval_extract(config_path: Path | None, golden: list[Path] | None, version: 
     config.evals_dir.mkdir(parents=True, exist_ok=True)
     with (config.evals_dir / "results.jsonl").open("a", encoding="utf-8") as results:
         entry = {"date": date.today().isoformat(), "prompt": version, "model": config.model, "summary": summary, "cases": [asdict(s) for s in scores]}
+        results.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return 0
+
+
+def _eval_resolve(config_path: Path | None, cases_dir: Path | None, version: str | None, model: str | None) -> int:
+    try:
+        config = config_module.load_config(config_path)
+        if model:
+            config = replace(config, model=model)
+        prompts = default_prompts()
+        version = version or prompts.get("resolve").version
+        folder = cases_dir or db.REPO_ROOT / "evals" / "resolution"
+        cases = evaluate_resolve.load_cases(folder)
+        if not cases:
+            print(f"no resolution cases found in {folder}", file=sys.stderr)
+            return 2
+        llm = build_llm(config, prompts)
+        scores = evaluate_resolve.run_cases(llm, cases, version)
+    except config_module.ConfigError as error:
+        print(error, file=sys.stderr)
+        return 2
+    except (BudgetExceeded, anthropic.AnthropicError) as error:
+        print(f"eval stopped: {error}", file=sys.stderr)
+        return 1
+
+    summary = evaluate_resolve.summarize(scores)
+    sweep = evaluate_resolve.threshold_sweep(scores)
+    print(evaluate_resolve.format_report(scores, summary, sweep, version, config.model))
+    config.evals_dir.mkdir(parents=True, exist_ok=True)
+    with (config.evals_dir / "results.jsonl").open("a", encoding="utf-8") as results:
+        entry = {"eval": "resolve", "date": date.today().isoformat(), "prompt": version, "model": config.model, "summary": summary, "sweep": sweep, "cases": [asdict(s) for s in scores]}
         results.write(json.dumps(entry, ensure_ascii=False) + "\n")
     return 0
 

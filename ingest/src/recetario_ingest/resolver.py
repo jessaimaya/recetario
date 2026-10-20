@@ -14,7 +14,7 @@ from recetario_ingest.terms import TermExample
 from recetario_ingest.vocabulary import Candidate, Entry, Vocabulary, add_alias, create_proposal, find_proposal
 
 PROMPT_ID = "resolve"
-T_AUTO = 0.9  # a mapping at or above this confidence, onto a candidate we showed, is accepted without review
+T_AUTO = 0.85  # a mapping at or above this confidence, onto a candidate we showed, is accepted without review (see EVALS.md)
 
 RESOLVE_SCHEMA = {
     "type": "object",
@@ -49,6 +49,31 @@ You get the kind of term (ingredient, equipment or attribute_key), the term, sho
 
 Decide:
 - map_to: the term means the same thing as one candidate. Differences of wording, size, plural or state ("big skillet", "preheated oven") don't make a new thing. Set target to that candidate's name_en exactly.
+- new_entry: no candidate means the same thing. Never map to a candidate that is merely similar: look-alikes are separate entries (lemon and lime), and a child entry satisfies its parent but never the reverse.
+
+Naming rules for a new entry:
+- name_es_mx is the word used at a Mexican market or supermarket: lowercase, singular, no brand, no preparation, no quantity ("jitomate", not "tomates picados"). Mexican usage beats Spain's ("jitomate", "betabel", "calabacita", "durazno", "papa", not "tomate", "remolacha", "calabacín", "melocotón", "patata").
+- name_en is the generic English name, singular, no brand. Brands become their generic (Instant Pot -> electric pressure cooker).
+- parent_en names a candidate it is a kind of, only when a recipe asking for the parent would be satisfied by this entry; empty otherwise.
+- Equipment is an appliance, cookware, bakeware, bowl or tool. Typical es-MX names: horno, licuadora, olla, sartén, charola para hornear, freidora de aire.
+- An attribute_key's name_en is English snake_case with the unit in the name (prep_min, sodium_mg, calories_kcal); name_es_mx is a short label ("Sodio (mg)"); value_type is number, text, bool or duration; unit is min, g, mg, kcal and so on, or empty. Synonyms ("ready in", "total time") map to one key.
+- For map_to leave the new_entry fields empty. For new_entry leave target empty.
+
+confidence is how sure you are, from 0 to 1. Use below 0.9 whenever the term is ambiguous, regional or you are guessing. reason is one short sentence.""",
+    template="{text}",
+)
+
+
+RESOLVE_V2 = Prompt(
+    id=PROMPT_ID,
+    version="v2",
+    system="""You map one term from an English cookbook to an entry in the canonical vocabulary of a recipe app whose display language is Mexican Spanish (es-MX). A person reviews whatever you are unsure about.
+
+You get the kind of term (ingredient, equipment or attribute_key), the term, short examples of how the book used it, and the closest existing entries (candidates).
+
+Decide:
+- map_to: the term means the same thing as one candidate. Differences of wording, size, plural or state ("big skillet", "preheated oven") don't make a new thing. Set target to that candidate's name_en exactly.
+- A variety or cultivar of an ingredient maps to the base entry as an alias: cherry tomato, red onion, Granny Smith apple, Yukon gold potato, key lime all map. Make a new entry only when it is bought or used as a different thing (wild rice is not rice, sweet potato is not potato, cream cheese is not cheese).
 - new_entry: no candidate means the same thing. Never map to a candidate that is merely similar: look-alikes are separate entries (lemon and lime), and a child entry satisfies its parent but never the reverse.
 
 Naming rules for a new entry:

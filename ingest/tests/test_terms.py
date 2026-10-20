@@ -6,7 +6,7 @@ from recetario_ingest.terms import TermExample, collect_terms, normalize_term, s
 @pytest.mark.parametrize(
     ("word", "expected"),
     [("potatoes", "potato"), ("cherries", "cherry"), ("sheets", "sheet"), ("dishes", "dish"), ("boxes", "box"), ("glass", "glass"),
-     ("asparagus", "asparagus"), ("couscous", "couscous"), ("citrus", "citrus"), ("oz", "oz"), ("peas", "pea"), ("is", "is")],
+     ("asparagus", "asparagus"), ("couscous", "couscous"), ("citrus", "citrus"), ("oz", "oz"), ("peas", "pea"), ("is", "is"), ("leaves", "leaf"), ("loaves", "loaf")],
 )
 def test_singular(word, expected):
     assert singular(word) == expected
@@ -28,6 +28,10 @@ def test_singular(word, expected):
         ("ingredient", "Tomatoes (ripe)", "tomato"),
         ("ingredient", "Jalapeño Peppers", "jalapeno pepper"),
         ("ingredient", "stone-ground grits", "stone ground grits"),
+        ("ingredient", "fresh sage leaves", "sage leaf"),
+        ("ingredient", "frozen cauliflower", "cauliflower"),
+        ("ingredient", "dried cranberries", "dried cranberry"),  # drying changes what you buy
+        ("ingredient", "fresh", "fresh"),
     ],
 )
 def test_normalize_term(kind, text, expected):

@@ -28,6 +28,11 @@ def test_reads_quantity_unit_name_and_preparation(raw, qty, unit, name, preparat
     assert parsed.needs_model is None
 
 
+def test_a_size_word_before_the_unit_does_not_hide_it():
+    parsed = parse_line("1 large head cauliflower, cut into florets")
+    assert (parsed.qty, parsed.unit, parsed.name) == (1, "head", "cauliflower")
+
+
 def test_a_range_keeps_both_ends():
     parsed = parse_line("2 to 3 tbsps. butter")
     assert (parsed.qty, parsed.qty_max, parsed.name) == (2, 3, "butter")

@@ -34,6 +34,7 @@ class BookReport:
     web_searches: int = 0
     cost_usd: float = 0.0
     seconds: float = 0.0
+    terms: dict[str, dict[str, int]] = field(default_factory=dict)  # kind -> {exact, auto, review} counts of unique terms
     extraction_tokens: int = 0  # what the extract stage would send as input: recipe text plus the prompt, per recipe
     failures: list[str] = field(default_factory=list)
 
@@ -139,6 +140,8 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
             book.kinds[segment["kind"]] = book.kinds.get(segment["kind"], 0) + 1
         overhead = estimate_tokens(prompts.get("extract").system)
         book.extraction_tokens = sum(estimate_tokens(s["text"]) + overhead for s in segments if s["kind"] == "recipe")
+    if "resolve" in run.stages and not run.stages["resolve"].failed:
+        book.terms = term_counts(store.read_all("resolve"))
     sources.set_status(conn, source, "failed" if run.failures else "done")
     book.seconds = time.monotonic() - started
     return book
@@ -149,6 +152,15 @@ def _save_report(artifacts_dir: Path, report: RunReport) -> None:
     runs.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     (runs / f"{stamp}.json").write_text(json.dumps(asdict(report), indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def term_counts(resolutions: list[dict]) -> dict[str, dict[str, int]]:
+    """Per kind, how the book's unique terms were settled: matched exactly, accepted automatically, or left to review."""
+    counts: dict[str, dict[str, int]] = {}
+    for item in resolutions:
+        row = counts.setdefault(item["kind"], {"exact": 0, "auto": 0, "review": 0})
+        row["exact" if item["method"] == "exact" else "auto" if item["outcome"] == "resolved" else "review"] += 1
+    return counts
 
 
 def format_report(report: RunReport, config: Config) -> str:
@@ -169,6 +181,12 @@ def format_report(report: RunReport, config: Config) -> str:
                 f"  units: {book.units_run} run, {book.units_cached} cached · "
                 f"tokens {book.tokens_in:,} in / {book.tokens_out:,} out · "
                 f"web searches {book.web_searches} · cost ${book.cost_usd:.4f} · {book.seconds:.1f}s"
+            )
+        for kind, row in sorted(book.terms.items()):
+            total = sum(row.values())
+            lines.append(
+                f"  {kind} terms: {total} unique · {row['exact']} known ({row['exact'] / total:.0%}) · "
+                f"{row['auto']} auto-accepted ({row['auto'] / total:.0%}) · {row['review']} to review ({row['review'] / total:.0%})"
             )
         lines += [f"  FAILED {failure}" for failure in book.failures]
     if report.dry_run and report.books:

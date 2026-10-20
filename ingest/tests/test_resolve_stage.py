@@ -67,3 +67,16 @@ def test_decisions_made_in_review_survive_a_forced_rerun(setup):
     run_stages(conn, ctx, [ResolveStage()])
 
     assert len(llm.inputs) == 2 and find_proposal(conn, "equipment", "wok").status == "rejected"
+
+
+def test_term_counts_split_exact_auto_and_review():
+    from recetario_ingest.ingest import term_counts
+
+    items = [
+        {"kind": "ingredient", "method": "exact", "outcome": "resolved"},
+        {"kind": "ingredient", "method": "llm", "outcome": "resolved"},
+        {"kind": "ingredient", "method": "llm", "outcome": "proposed"},
+        {"kind": "ingredient", "method": "existing_proposal", "outcome": "proposed"},
+        {"kind": "equipment", "method": "exact", "outcome": "resolved"},
+    ]
+    assert term_counts(items) == {"ingredient": {"exact": 1, "auto": 1, "review": 2}, "equipment": {"exact": 1, "auto": 0, "review": 0}}

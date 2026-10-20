@@ -1,0 +1,748 @@
+[
+ {
+  "id": "trap-tomato",
+  "kind": "ingredient",
+  "term": "tomato",
+  "expect": {
+   "new_entry": [
+    "jitomate"
+   ]
+  },
+  "holdout": [
+   "tomato"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-tomatillo",
+  "kind": "ingredient",
+  "term": "tomatillo",
+  "expect": {
+   "new_entry": [
+    "tomate verde"
+   ]
+  },
+  "holdout": [
+   "tomatillo"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-pecan",
+  "kind": "ingredient",
+  "term": "pecan",
+  "expect": {
+   "new_entry": [
+    "nuez"
+   ]
+  },
+  "holdout": [
+   "pecan"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-walnut",
+  "kind": "ingredient",
+  "term": "walnut",
+  "expect": {
+   "new_entry": [
+    "nuez de Castilla"
+   ]
+  },
+  "holdout": [
+   "walnut"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-zucchini",
+  "kind": "ingredient",
+  "term": "zucchini",
+  "expect": {
+   "new_entry": [
+    "calabacita"
+   ]
+  },
+  "holdout": [
+   "zucchini"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-green-beans",
+  "kind": "ingredient",
+  "term": "green beans",
+  "expect": {
+   "new_entry": [
+    "ejote"
+   ]
+  },
+  "holdout": [
+   "green beans"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-peas",
+  "kind": "ingredient",
+  "term": "peas",
+  "expect": {
+   "new_entry": [
+    "chícharo"
+   ]
+  },
+  "holdout": [
+   "peas"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-beet",
+  "kind": "ingredient",
+  "term": "beet",
+  "expect": {
+   "new_entry": [
+    "betabel"
+   ]
+  },
+  "holdout": [
+   "beet"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-sweet-potato",
+  "kind": "ingredient",
+  "term": "sweet potato",
+  "expect": {
+   "new_entry": [
+    "camote"
+   ]
+  },
+  "holdout": [
+   "sweet potato"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-corn-on-the-cob",
+  "kind": "ingredient",
+  "term": "corn on the cob",
+  "expect": {
+   "new_entry": [
+    "elote"
+   ]
+  },
+  "holdout": [
+   "corn on the cob"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-apricot",
+  "kind": "ingredient",
+  "term": "apricot",
+  "expect": {
+   "new_entry": [
+    "chabacano"
+   ]
+  },
+  "holdout": [
+   "apricot"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-peach",
+  "kind": "ingredient",
+  "term": "peach",
+  "expect": {
+   "new_entry": [
+    "durazno"
+   ]
+  },
+  "holdout": [
+   "peach"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-potato",
+  "kind": "ingredient",
+  "term": "potato",
+  "expect": {
+   "new_entry": [
+    "papa"
+   ]
+  },
+  "holdout": [
+   "potato"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-bell-pepper",
+  "kind": "ingredient",
+  "term": "bell pepper",
+  "expect": {
+   "new_entry": [
+    "pimiento morrón"
+   ]
+  },
+  "holdout": [
+   "bell pepper"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-green-onion",
+  "kind": "ingredient",
+  "term": "green onion",
+  "expect": {
+   "new_entry": [
+    "cebolla cambray"
+   ]
+  },
+  "holdout": [
+   "green onion"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-cornstarch",
+  "kind": "ingredient",
+  "term": "cornstarch",
+  "expect": {
+   "new_entry": [
+    "fécula de maíz"
+   ]
+  },
+  "holdout": [
+   "cornstarch"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-sour-cream",
+  "kind": "ingredient",
+  "term": "sour cream",
+  "expect": {
+   "new_entry": [
+    "crema ácida"
+   ]
+  },
+  "holdout": [
+   "sour cream"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-heavy-cream",
+  "kind": "ingredient",
+  "term": "heavy cream",
+  "expect": {
+   "new_entry": [
+    "crema para batir"
+   ]
+  },
+  "holdout": [
+   "heavy cream"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-brown-sugar",
+  "kind": "ingredient",
+  "term": "brown sugar",
+  "expect": {
+   "new_entry": [
+    "azúcar mascabado"
+   ]
+  },
+  "holdout": [
+   "brown sugar"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-lime",
+  "kind": "ingredient",
+  "term": "lime",
+  "expect": {
+   "new_entry": [
+    "limón"
+   ]
+  },
+  "holdout": [
+   "lime"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-lemon",
+  "kind": "ingredient",
+  "term": "lemon",
+  "expect": {
+   "new_entry": [
+    "limón amarillo"
+   ]
+  },
+  "holdout": [
+   "lemon"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "trap-cilantro",
+  "kind": "ingredient",
+  "term": "cilantro",
+  "expect": {
+   "new_entry": [
+    "cilantro"
+   ]
+  },
+  "holdout": [
+   "cilantro"
+  ],
+  "note": "NAMING.md trap list",
+  "trap": true
+ },
+ {
+  "id": "map-plum-tomato",
+  "kind": "ingredient",
+  "term": "plum tomato",
+  "expect": {
+   "map_to": "tomato"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-roma-tomato",
+  "kind": "ingredient",
+  "term": "roma tomato",
+  "expect": {
+   "map_to": "tomato"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-cherry-tomato",
+  "kind": "ingredient",
+  "term": "cherry tomato",
+  "expect": {
+   "map_to": "tomato"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-yellow-onion",
+  "kind": "ingredient",
+  "term": "yellow onion",
+  "expect": {
+   "map_to": "onion"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-red-onion",
+  "kind": "ingredient",
+  "term": "red onion",
+  "expect": {
+   "map_to": "onion"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-baby-carrot",
+  "kind": "ingredient",
+  "term": "baby carrot",
+  "expect": {
+   "map_to": "carrot"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-red-potato",
+  "kind": "ingredient",
+  "term": "red potato",
+  "expect": {
+   "map_to": "potato"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-yukon-gold-potato",
+  "kind": "ingredient",
+  "term": "yukon gold potato",
+  "expect": {
+   "map_to": "potato"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-key-lime",
+  "kind": "ingredient",
+  "term": "key lime",
+  "expect": {
+   "map_to": "lime"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-meyer-lemon",
+  "kind": "ingredient",
+  "term": "meyer lemon",
+  "expect": {
+   "map_to": "lemon"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-english-cucumber",
+  "kind": "ingredient",
+  "term": "english cucumber",
+  "expect": {
+   "map_to": "cucumber"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-granny-smith-apple",
+  "kind": "ingredient",
+  "term": "granny smith apple",
+  "expect": {
+   "map_to": "apple"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-ripe-banana",
+  "kind": "ingredient",
+  "term": "ripe banana",
+  "expect": {
+   "map_to": "banana"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-shredded-parmesan-cheese",
+  "kind": "ingredient",
+  "term": "shredded parmesan cheese",
+  "expect": {
+   "map_to": "parmesan cheese"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-whole-milk",
+  "kind": "ingredient",
+  "term": "whole milk",
+  "expect": {
+   "map_to": "milk"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-cilantro-leaf",
+  "kind": "ingredient",
+  "term": "cilantro leaf",
+  "expect": {
+   "map_to": "cilantro"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-english-pea",
+  "kind": "ingredient",
+  "term": "english pea",
+  "expect": {
+   "map_to": "peas"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "map-scallion-green",
+  "kind": "ingredient",
+  "term": "scallion green",
+  "expect": {
+   "map_to": "green onion"
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-lemongrass",
+  "kind": "ingredient",
+  "term": "lemongrass",
+  "expect": {
+   "new_entry": []
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-chives",
+  "kind": "ingredient",
+  "term": "chives",
+  "expect": {
+   "new_entry": []
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-cornmeal",
+  "kind": "ingredient",
+  "term": "cornmeal",
+  "expect": {
+   "new_entry": []
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-almond",
+  "kind": "ingredient",
+  "term": "almond",
+  "expect": {
+   "new_entry": [
+    "almendra"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-half-and-half",
+  "kind": "ingredient",
+  "term": "half and half",
+  "expect": {
+   "new_entry": []
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-cream-cheese",
+  "kind": "ingredient",
+  "term": "cream cheese",
+  "expect": {
+   "new_entry": [
+    "queso crema"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-buttermilk",
+  "kind": "ingredient",
+  "term": "buttermilk",
+  "expect": {
+   "new_entry": [
+    "suero de leche",
+    "suero de mantequilla"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-margarine",
+  "kind": "ingredient",
+  "term": "margarine",
+  "expect": {
+   "new_entry": [
+    "margarina"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-peanut-oil",
+  "kind": "ingredient",
+  "term": "peanut oil",
+  "expect": {
+   "new_entry": [
+    "aceite de cacahuate"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-sesame-oil",
+  "kind": "ingredient",
+  "term": "sesame oil",
+  "expect": {
+   "new_entry": [
+    "aceite de ajonjolí",
+    "aceite de sésamo"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-poblano-pepper",
+  "kind": "ingredient",
+  "term": "poblano pepper",
+  "expect": {
+   "new_entry": [
+    "chile poblano"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-habanero-pepper",
+  "kind": "ingredient",
+  "term": "habanero pepper",
+  "expect": {
+   "new_entry": [
+    "chile habanero"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-granulated-sugar",
+  "kind": "ingredient",
+  "term": "granulated sugar",
+  "expect": {
+   "new_entry": [
+    "azúcar"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-green-cabbage",
+  "kind": "ingredient",
+  "term": "green cabbage",
+  "expect": {
+   "new_entry": [
+    "col",
+    "repollo"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-spinach",
+  "kind": "ingredient",
+  "term": "spinach",
+  "expect": {
+   "new_entry": [
+    "espinaca"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-mushroom",
+  "kind": "ingredient",
+  "term": "mushroom",
+  "expect": {
+   "new_entry": [
+    "champiñón",
+    "hongo"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-broccoli",
+  "kind": "ingredient",
+  "term": "broccoli",
+  "expect": {
+   "new_entry": [
+    "brócoli"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-rice",
+  "kind": "ingredient",
+  "term": "rice",
+  "expect": {
+   "new_entry": [
+    "arroz"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-flour",
+  "kind": "ingredient",
+  "term": "flour",
+  "expect": {
+   "new_entry": [
+    "harina"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ },
+ {
+  "id": "new-coconut-milk",
+  "kind": "ingredient",
+  "term": "coconut milk",
+  "expect": {
+   "new_entry": [
+    "leche de coco"
+   ]
+  },
+  "holdout": [],
+  "note": ""
+ }
+]
