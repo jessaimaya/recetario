@@ -25,3 +25,32 @@ def perfect_extraction(text: str) -> dict:
         "equipment_mentions": [],
         "extras": [{"key_text": key, "value_text": value.strip()} for key, value in (n.split(":", 1) for n in nutrition)],
     }
+
+
+class ResolveScript:
+    """Stands in for the model during resolution: returns queued answers and keeps the inputs it was shown."""
+
+    model = "scripted"
+
+    def __init__(self, *answers):
+        self.answers, self.inputs = list(answers), []
+
+    def structured(self, prompt_id, version, input, schema, tools=()):
+        from recetario_ingest.llm.adapter import LlmResult, Usage
+
+        assert prompt_id == "resolve"
+        self.inputs.append(input)
+        return LlmResult(self.answers.pop(0), Usage(tokens_in=50, tokens_out=20, cost_usd=0.001))
+
+
+def map_answer(target, confidence=0.95, reason="same thing"):
+    return {"action": "map_to", "target": target, "new_entry": _blank(), "confidence": confidence, "reason": reason}
+
+
+def new_answer(name_en, name_es_mx, confidence=0.8, parent_en="", value_type="", unit=""):
+    entry = {"name_en": name_en, "name_es_mx": name_es_mx, "parent_en": parent_en, "value_type": value_type, "unit": unit}
+    return {"action": "new_entry", "target": "", "new_entry": entry, "confidence": confidence, "reason": "no candidate fits"}
+
+
+def _blank():
+    return {"name_en": "", "name_es_mx": "", "parent_en": "", "value_type": "", "unit": ""}

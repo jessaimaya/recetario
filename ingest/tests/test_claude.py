@@ -5,7 +5,8 @@ import pytest
 
 from recetario_ingest.config import Config, ConfigError
 from recetario_ingest.cost import Pricing
-from recetario_ingest.extraction import EXTRACTED_SCHEMA, default_prompts
+from recetario_ingest.extraction import EXTRACTED_SCHEMA
+from recetario_ingest.registry import default_prompts
 from recetario_ingest.llm.claude import ClaudeLlm, LlmError
 from recetario_ingest.llm.factory import build_llm
 

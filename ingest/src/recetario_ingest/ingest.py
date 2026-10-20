@@ -7,17 +7,17 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from recetario_ingest import db, epub, sources, stages
+from recetario_ingest import db, epub, seed, sources, stages
 from recetario_ingest.artifacts import ArtifactStore
 from recetario_ingest.config import Config
 from recetario_ingest.cost import cost_usd, estimate_tokens
-from recetario_ingest.extraction import default_prompts
+from recetario_ingest.registry import default_prompts
 from recetario_ingest.llm.adapter import LlmAdapter
 from recetario_ingest.llm.factory import build_llm
 from recetario_ingest.llm.prompts import PromptRegistry
 from recetario_ingest.pipeline import Context, Stage, run_stages
 
-STAGE_NAMES = ("text", "segment", "extract")
+STAGE_NAMES = ("text", "segment", "extract", "resolve")
 
 
 @dataclass
@@ -76,6 +76,7 @@ def ingest(
             conn, artifacts_dir = db.connect(config.db_path), config.artifacts_dir
         try:
             db.migrate(conn)
+            seed.load_vocabulary(conn)  # idempotent; resolution needs the starter vocabulary to match against
             for path in scan(config.books_dir):
                 report.books.append(_ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts))
         finally:
@@ -101,7 +102,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
 
     pipeline: list[Stage] = [stages.TextStage(path), stages.SegmentStage()]
     if llm is not None:
-        pipeline.append(stages.ExtractStage())
+        pipeline += [stages.ExtractStage(), stages.ResolveStage()]
     stage_names = [stage.name for stage in pipeline]
 
     file_hash = sources.file_sha256(path)
@@ -117,7 +118,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
 
     source = sources.set_status(conn, source, "in_progress")
     store = ArtifactStore(artifacts_dir / source.slug)
-    ctx = Context(source, store, prompts, llm, clock=time.monotonic, force_from=force_stage)
+    ctx = Context(source, store, prompts, llm, clock=time.monotonic, force_from=force_stage, conn=conn)
     run = run_stages(conn, ctx, pipeline)
 
     book = BookReport(

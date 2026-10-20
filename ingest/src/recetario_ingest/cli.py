@@ -10,9 +10,9 @@ from pathlib import Path
 import anthropic
 
 from recetario_ingest import config as config_module
-from recetario_ingest import db, evaluate, ingest, seed
+from recetario_ingest import db, evaluate, ingest, review, seed
 from recetario_ingest.cost import cost_usd, estimate_tokens
-from recetario_ingest.extraction import default_prompts
+from recetario_ingest.registry import default_prompts
 from recetario_ingest.llm.adapter import BudgetExceeded
 from recetario_ingest.llm.factory import build_llm
 
@@ -42,15 +42,40 @@ def main(argv: list[str] | None = None) -> int:
     ev_extract.add_argument("--prompt", help="prompt version (default: the latest)")
     ev_extract.add_argument("--dry-run", action="store_true", help="count recipes and estimate input cost; call nothing")
 
+    review_parser = commands.add_parser("review", help="decide open vocabulary proposals, or spot-check auto-accepted aliases")
+    review_parser.add_argument("--config", type=Path)
+    review_parser.add_argument("--kind", choices=("ingredient", "equipment", "attribute_key"))
+    review_parser.add_argument("--auto", action="store_true", help="spot-check the aliases accepted automatically instead")
+
     args = parser.parse_args(argv)
     config_module.load_dotenv()
     if args.command == "db" and args.db_command == "init":
         return _db_init(args.db, fresh=args.fresh, fixtures=args.fixtures)
     if args.command == "ingest":
         return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage)
+    if args.command == "review":
+        return _review(args.config, args.kind, args.auto)
     if args.command == "eval":
         return _eval_extract(args.config, args.golden, args.prompt, args.dry_run, args.model)
     return 1
+
+
+def _review(config_path: Path | None, kind: str | None, auto: bool) -> int:
+    try:
+        config = config_module.load_config(config_path)
+    except config_module.ConfigError as error:
+        print(error, file=sys.stderr)
+        return 2
+    conn = db.connect(config.db_path)
+    try:
+        counts = (review.spot_check_auto if auto else review.review_proposals)(conn, kind)
+    except (EOFError, KeyboardInterrupt):
+        print("\nstopped; decisions made so far are saved")
+        return 0
+    finally:
+        conn.close()
+    print("done: " + ", ".join(f"{count} {name}" for name, count in counts.items()))
+    return 0
 
 
 def _eval_extract(config_path: Path | None, golden: list[Path] | None, version: str | None, dry_run: bool, model: str | None) -> int:

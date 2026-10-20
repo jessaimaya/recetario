@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 
 from recetario_ingest.llm.adapter import LlmAdapter, Usage
-from recetario_ingest.llm.prompts import Prompt, PromptRegistry
+from recetario_ingest.llm.prompts import Prompt
 from recetario_ingest.validate import Issue, validate
 
 PROMPT_ID = "extract"
@@ -81,12 +81,6 @@ Add nothing that is not in the text.""",
     template="{text}",
 )
 
-
-def default_prompts() -> PromptRegistry:
-    registry = PromptRegistry()
-    registry.register(EXTRACT_V1)
-    registry.register(EXTRACT_V2)
-    return registry
 
 
 @dataclass

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dataclasses import asdict
 
-from recetario_ingest import epub, extraction, segment
+from recetario_ingest import epub, extraction, resolver, segment, terms
 from recetario_ingest.pipeline import Context, Stage, StageError, StageOutput, Unit
 
 
@@ -111,3 +111,30 @@ class ExtractStage(Stage):
             },
             result.usage,
         )
+
+
+class ResolveStage(Stage):
+    """Terms of the book (equipment names and attribute keys so far): one unit per unique term.
+
+    The vocabulary tables are the source of truth, so this stage writes auto-accepted aliases and open proposals
+    to the database itself; its artifacts only record what happened, which also spares repeated model calls.
+    """
+
+    name = "resolve"
+    version = "1"
+    prompt_id = resolver.PROMPT_ID
+
+    def units(self, ctx: Context) -> list[Unit]:
+        if ctx.llm is None or ctx.conn is None:
+            raise StageError("no model is configured")
+        found = terms.collect_terms(ctx.store.read_all("extract"))
+        return [
+            Unit(key=f"{kind}-{term}", input_hash=_hash(kind, term), payload=(kind, term, examples))
+            for (kind, term), examples in found.items()
+        ]
+
+    def run(self, ctx: Context, unit: Unit) -> StageOutput:
+        kind, term, examples = unit.payload
+        version = ctx.prompts.get(self.prompt_id).version
+        resolution = resolver.Resolver(ctx.conn, ctx.llm, version, ctx.source.id).resolve(kind, term, examples)
+        return StageOutput(resolution.as_json(), resolution.usage)

@@ -6,7 +6,7 @@ from fakes import perfect_extraction
 from recetario_ingest import evaluate
 from recetario_ingest.cli import main
 from recetario_ingest.llm.adapter import FakeLlm
-from recetario_ingest.extraction import default_prompts
+from recetario_ingest.registry import default_prompts
 
 TEXT = (
     "Soup\n\"Warm.\"\nServing: 2 | Prep: 5m | Ready in: 15m\nIngredients\n• 2 cups stock\n• 1 onion\n"

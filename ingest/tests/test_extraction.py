@@ -3,7 +3,8 @@ import json
 import pytest
 from fakes import perfect_extraction
 
-from recetario_ingest.extraction import EXTRACT_V1, EXTRACT_V2, EXTRACTED_SCHEMA, default_prompts, extract_recipe
+from recetario_ingest.extraction import EXTRACT_V1, EXTRACT_V2, EXTRACTED_SCHEMA, extract_recipe
+from recetario_ingest.registry import default_prompts
 from recetario_ingest.llm.adapter import FakeLlm, LlmResult, Usage
 
 TEXT = (

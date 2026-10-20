@@ -230,11 +230,21 @@ class ArtifactsOf:
 def sample_llm(cost_per_call=0.0, cap=None):
     from fakes import perfect_extraction
 
-    from recetario_ingest.extraction import default_prompts
+    from recetario_ingest.registry import default_prompts
     from recetario_ingest.llm.adapter import FakeLlm, MeteredLlm
 
     prompts = default_prompts()
-    return prompts, MeteredLlm(FakeLlm(prompts, {"extract": perfect_extraction}, cost_per_call=cost_per_call), cap)
+    unsure = {
+        "action": "new_entry", "target": "",
+        "new_entry": {"name_en": "new_key", "name_es_mx": "Nueva", "parent_en": "", "value_type": "number", "unit": ""},
+        "confidence": 0.5, "reason": "test",
+    }
+    responses = {"extract": perfect_extraction, "resolve": unsure}
+    return prompts, MeteredLlm(FakeLlm(prompts, responses, cost_per_call=cost_per_call), cap)
+
+
+def calls_of(llm, prompt_id):
+    return [call for call in llm._inner.calls if call[0] == prompt_id]
 
 
 def test_extraction_runs_per_recipe_and_is_cached_on_a_second_run(config):
@@ -245,9 +255,10 @@ def test_extraction_runs_per_recipe_and_is_cached_on_a_second_run(config):
     extracted = ArtifactsOf(config).stage("extract")
     (second,) = ingest.ingest(config, llm=llm, prompts=prompts).books
 
-    assert first.outcome == "ingested" and first.cost_usd == pytest.approx(0.03) and len(extracted) == 3
+    assert first.outcome == "ingested" and first.cost_usd == pytest.approx(0.01 * len(llm._inner.calls)) and len(extracted) == 3
+    assert len(calls_of(llm, "extract")) == 3
     assert {e["status"] for e in extracted} == {"ok"} and extracted[0]["extracted"]["ingredient_lines"]
-    assert second.outcome == "already done" and llm.spent_usd == pytest.approx(0.03)  # no new calls
+    assert second.outcome == "already done" and llm.spent_usd == pytest.approx(first.cost_usd)  # no new calls
 
 
 def test_a_book_ingested_without_a_model_is_extracted_once_a_model_is_added(config):
@@ -257,7 +268,7 @@ def test_a_book_ingested_without_a_model_is_extracted_once_a_model_is_added(conf
 
     (book,) = ingest.ingest(config, llm=llm, prompts=prompts).books
 
-    assert book.outcome == "ingested" and book.units_run == 3 and len(ArtifactsOf(config).stage("extract")) == 3
+    assert book.outcome == "ingested" and len(calls_of(llm, "extract")) == 3 and len(ArtifactsOf(config).stage("extract")) == 3
 
 
 def test_the_spending_cap_stops_extraction_and_a_rerun_with_budget_resumes_it(config):
@@ -267,16 +278,17 @@ def test_the_spending_cap_stops_extraction_and_a_rerun_with_budget_resumes_it(co
     (stopped,) = ingest.ingest(config, llm=llm, prompts=prompts).books
 
     assert stopped.outcome == "failed" and "spending cap" in stopped.failures[0] and len(stopped.failures) == 1
+    assert calls_of(llm, "resolve") == []  # later stages don't run after a failure
     assert len(ArtifactsOf(config).stage("extract")) == 3  # the third call started at $0.80, under the cap
 
     prompts, fresh = sample_llm(cost_per_call=0.4, cap=5.0)
     (resumed,) = ingest.ingest(config, llm=fresh, prompts=prompts).books
 
-    assert resumed.outcome == "ingested" and fresh.spent_usd == pytest.approx(0.8)  # only the two missing recipes
+    assert resumed.outcome == "ingested" and len(calls_of(fresh, "extract")) == 2  # only the two missing recipes
 
 
 def test_a_recipe_the_model_gets_wrong_is_kept_for_review_not_dropped(config):
-    from recetario_ingest.extraction import default_prompts
+    from recetario_ingest.registry import default_prompts
     from recetario_ingest.llm.adapter import FakeLlm
 
     sample_book(config.books_dir / "b.epub", recipes=2)
@@ -297,7 +309,7 @@ def test_extraction_only_covers_recipes_not_other_entries(config):
 
     ingest.ingest(config, llm=llm, prompts=prompts)
 
-    assert len(llm._inner.calls) == 4
+    assert len(calls_of(llm, "extract")) == 4
 
 
 def test_dry_run_never_calls_the_model_even_when_one_is_given(config):

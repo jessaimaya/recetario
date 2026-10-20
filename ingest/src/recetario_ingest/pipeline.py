@@ -37,6 +37,7 @@ class Context:
     llm: LlmAdapter | None
     clock: Callable[[], float]  # monotonic seconds
     force_from: str | None = None  # re-run this stage and every later one
+    conn: sqlite3.Connection | None = None  # for the stages that read or write the vocabulary
 
 
 class Stage:
