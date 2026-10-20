@@ -70,7 +70,7 @@ function Pantry() {
       <div class="combo">
         <input
           type="search"
-          placeholder="Agrega lo que tienes: huevo, jitomate…"
+          placeholder="Agrega lo que tienes…"
           value={query.value}
           onInput={(event) => (query.value = event.currentTarget.value)}
           aria-label="Agregar ingrediente"
