@@ -22,6 +22,8 @@
   "include": [
     "src",
     "test",
+    "netlify",
+    "scripts",
     "vitest.config.ts",
     "vite.config.ts"
   ]

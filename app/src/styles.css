@@ -91,11 +91,11 @@ button.danger { border-color: var(--mark-text); color: var(--mark-text); }
 button.danger:hover { background: var(--mark-text); color: var(--paper); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-input[type="search"] {
+input[type="search"], input[type="text"] {
   width: 100%; min-height: 48px; padding: 8px 0; border: 0; border-bottom: 1.5px solid var(--ink); border-radius: 0;
   background: transparent; font: italic 400 1.4rem/1.3 var(--serif); outline-offset: 4px; appearance: none;
 }
-input[type="search"]::placeholder { color: var(--muted); }
+input[type="search"]::placeholder, input[type="text"]::placeholder { color: var(--muted); }
 
 /* A group of choices set as text: the chosen one is underlined */
 .segmented { display: flex; flex-wrap: wrap; gap: 4px 22px; }
@@ -263,3 +263,10 @@ code { font-size: 0.85em; background: var(--hair); padding: 1px 5px; }
   font: 500 1.15rem/1.3 var(--serif); color: var(--ink); text-overflow: ellipsis; cursor: pointer;
 }
 .select select:focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; }
+
+/* natural-language question */
+.ask { margin: 0 0 26px; }
+.asked { margin: 0 0 8px; }
+.asked .quote { font: italic 400 1.15rem/1.4 var(--serif); margin: 4px 0 14px; }
+.understood { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 4px; font: 500 1.1rem/1.4 var(--serif); }
+.understood span { font: 12px/1 var(--sans, Inter, sans-serif); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-right: 10px; }

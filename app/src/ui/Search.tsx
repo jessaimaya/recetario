@@ -1,8 +1,9 @@
 import { useSignal } from "@preact/signals";
 
+import { ASK_URL } from "../nl/client";
 import type { RankedRecipe } from "../core/types";
 import {
-  addTerms, answerAvailability, answerHave, answered, blocked, cards, dismiss, entryById, ingredients, maxMissing,
+  addTerms, answerAvailability, askQuestion, askStatus, asked, clearAsked, answerHave, answered, blocked, cards, dismiss, entryById, ingredients, maxMissing,
   maxTotalMin, openQuestions, pantry, pantryExtras, pantryNote, removeExtra, results, setMaxMissing, setMaxTotalMin, slots, togglePantry,
 } from "../store";
 import { findEntries } from "./find";
@@ -18,32 +19,92 @@ export function Search() {
   return (
     <div class="page">
       <h1>¿Qué cocino hoy?</h1>
-      <Pantry />
-      <div class="filters">
-        <label>
-          <span>Te puede faltar</span>
-          <Segmented
-            label="Ingredientes que faltan"
-            value={maxMissing.value}
-            options={[0, 1, 2, 3].map((n) => ({ value: n, text: n === 0 ? "nada" : String(n) }))}
-            onChange={setMaxMissing}
-          />
-        </label>
-        <label>
-          <span>Tiempo total</span>
-          <Segmented
-            label="Tiempo total"
-            value={maxTotalMin.value}
-            options={[{ value: undefined, text: "cualquiera" }, { value: 30, text: "≤ 30 min" }, { value: 60, text: "≤ 1 h" }]}
-            onChange={setMaxTotalMin}
-          />
-        </label>
-      </div>
-      <Questions />
+      {ASK_URL !== null && <AskBox />}
+      {asked.value ? (
+        <Asked />
+      ) : (
+        <>
+          <Pantry />
+          <div class="filters">
+            <label>
+              <span>Te puede faltar</span>
+              <Segmented
+                label="Ingredientes que faltan"
+                value={maxMissing.value}
+                options={[0, 1, 2, 3].map((n) => ({ value: n, text: n === 0 ? "nada" : String(n) }))}
+                onChange={setMaxMissing}
+              />
+            </label>
+            <label>
+              <span>Tiempo total</span>
+              <Segmented
+                label="Tiempo total"
+                value={maxTotalMin.value}
+                options={[{ value: undefined, text: "cualquiera" }, { value: 30, text: "≤ 30 min" }, { value: 60, text: "≤ 1 h" }]}
+                onChange={setMaxTotalMin}
+              />
+            </label>
+          </div>
+          <Questions />
+        </>
+      )}
       {none ? <NoResults /> : <Groups found={found} />}
       <HiddenNote />
       <p class="note"><a href="#/recetas">Ver todas las recetas →</a></p>
     </div>
+  );
+}
+
+function AskBox() {
+  const text = useSignal("");
+  const { busy, message } = askStatus.value;
+  return (
+    <form
+      class="ask"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (text.value.trim() !== "" && !busy) void askQuestion(text.value.trim());
+      }}
+    >
+      <div class="combo-row">
+        <input
+          type="text"
+          value={text.value}
+          onInput={(event) => (text.value = event.currentTarget.value)}
+          placeholder="O pregunta: algo rápido con pollo, sin cilantro…"
+          aria-label="Pregunta sobre qué cocinar"
+          maxLength={300}
+          enterkeyhint="send"
+          autocomplete="off"
+        />
+        <button type="submit" class="primary add" disabled={busy || text.value.trim() === ""}>{busy ? "Pensando…" : "Preguntar"}</button>
+      </div>
+      {message && <p class="note" role="status">{message}</p>}
+    </form>
+  );
+}
+
+/** What the model understood, spelled out, so a wrong reading is easy to spot and to leave. */
+function Asked() {
+  const question = asked.value;
+  if (question === null) return null;
+  const names = (list: { label: string }[]) => list.map((entry) => entry.label).join(", ");
+  return (
+    <section class="asked" aria-label="Lo que entendí">
+      <h2>Lo que entendí</h2>
+      <p class="quote">«{question.question}»</p>
+      <ul class="understood">
+        <li><span>Tienes</span> {question.have.length > 0 ? names(question.have) : "nada en particular"}</li>
+        {question.exclude.length > 0 && <li><span>Sin</span> {names(question.exclude)}</li>}
+        <li><span>Te puede faltar</span> {question.maxMissing === 0 ? "nada" : question.maxMissing}</li>
+        {question.maxTotalMin !== undefined && <li><span>Tiempo total</span> ≤ {minutes(question.maxTotalMin)}</li>}
+      </ul>
+      {question.unknown.length > 0 && <p class="note">No están en el vocabulario, así que no cuentan: {question.unknown.join(", ")}.</p>}
+      {question.ignored.length > 0 && <p class="note">No pude aplicar: {question.ignored.join("; ")}.</p>}
+      <div class="actions">
+        <button type="button" onClick={clearAsked}>Volver a mis ingredientes</button>
+      </div>
+    </section>
   );
 }
 
@@ -222,6 +283,13 @@ function Group({ missing, list }: { missing: number; list: RankedRecipe[] }) {
 }
 
 function NoResults() {
+  if (asked.value) {
+    return (
+      <Empty title="Nada con eso">
+        <p>Ninguna receta cumple lo que entendí. Prueba con otra pregunta, o vuelve a tus ingredientes.</p>
+      </Empty>
+    );
+  }
   if (pantry.value.size === 0) {
     return (
       <Empty title="Empieza con lo que tienes">

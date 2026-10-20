@@ -6,6 +6,7 @@ import { loadSearchData } from "./db/load";
 import { deleteValue, readValue, writeValue } from "./db/persist";
 import { type DatabaseSummary, type Entry, type RecipeCard, loadEntries, loadRecipeCards, setAvailability, setOwned, summarize } from "./db/queries";
 import { type AppDatabase, openDatabase } from "./db/sqlite";
+import { askModel } from "./nl/client";
 import { resolveTerm, splitTerms } from "./ui/find";
 
 export type Status = "loading" | "empty" | "ready" | "error";
@@ -36,7 +37,30 @@ export const entryById = computed(() => new Map(entries.value.map((entry) => [en
 export const ingredients = computed(() => entries.value.filter((entry) => entry.kind === "ingredient"));
 export const equipment = computed(() => entries.value.filter((entry) => entry.kind === "equipment"));
 
-const filters = computed(() => ({ onHand: [...pantry.value], maxMissing: maxMissing.value, maxTotalMin: maxTotalMin.value }));
+/** A question answered by the model, shown instead of the pantry and the filters until it is cleared. Lives for this visit only. */
+export interface Asked {
+  question: string;
+  have: Entry[];
+  exclude: Entry[];
+  /** Names the vocabulary has no entry for (or only a staple), so they could not count. */
+  unknown: string[];
+  maxMissing: number;
+  maxTotalMin?: number;
+  ignored: string[];
+}
+export const asked = signal<Asked | null>(null);
+export const askStatus = signal<{ busy: boolean; message: string | null }>({ busy: false, message: null });
+
+const filters = computed(() => {
+  const question = asked.value;
+  if (question === null) return { onHand: [...pantry.value], maxMissing: maxMissing.value, maxTotalMin: maxTotalMin.value };
+  return {
+    onHand: question.have.map((entry) => entry.id),
+    excludeIngredients: question.exclude.map((entry) => entry.id),
+    maxMissing: question.maxMissing,
+    maxTotalMin: question.maxTotalMin,
+  };
+});
 export const results = computed(() => (searchData.value ? search(filters.value, searchData.value) : []));
 export const blocked = computed(() => (searchData.value ? blockedCounts(filters.value, searchData.value) : {}));
 export const haveQuestions = computed(() => questionsToAsk(results.value, 8).filter((q) => !dismissed.value.has(`have:${q.entryId}`) && entryById.value.get(q.entryId)?.availability === "obtainable"));
@@ -69,6 +93,47 @@ export function setMaxMissing(value: number): void {
 export function setMaxTotalMin(value: number | undefined): void {
   maxTotalMin.value = value;
   remember("maxTotalMin", value);
+}
+
+/** Ask the model for filters, then match the names it gives against the vocabulary here, on the device. */
+export async function askQuestion(question: string): Promise<void> {
+  askStatus.value = { busy: true, message: null };
+  const outcome = await askModel(question);
+  if (!outcome.ok) {
+    askStatus.value = { busy: false, message: outcome.message };
+    return;
+  }
+  const unknown: string[] = [];
+  const match = (terms: string[], keepStaples: boolean): Entry[] => {
+    const found = new Map<EntryId, Entry>();
+    for (const term of terms) {
+      const entry = resolveTerm(term, ingredients.value);
+      if (entry === null || (entry.isStaple && !keepStaples)) {
+        if (entry === null) unknown.push(term);
+      } else found.set(entry.id, entry);
+    }
+    return [...found.values()];
+  };
+  const { ask } = outcome;
+  batch(() => {
+    asked.value = {
+      question,
+      have: match(ask.have, false),
+      exclude: match(ask.exclude, true),
+      unknown,
+      maxMissing: ask.maxMissing,
+      maxTotalMin: ask.maxTotalMin,
+      ignored: ask.ignored,
+    };
+    askStatus.value = { busy: false, message: null };
+  });
+}
+
+export function clearAsked(): void {
+  batch(() => {
+    asked.value = null;
+    askStatus.value = { busy: false, message: null };
+  });
 }
 
 export async function bootstrap(): Promise<void> {
