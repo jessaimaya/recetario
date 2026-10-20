@@ -53,3 +53,19 @@ def test_missing_explicit_config_is_an_error(tmp_path):
 def test_token_and_cost_estimates():
     assert estimate_tokens("a" * 401) == 101
     assert cost_usd(2_000_000, 500_000, Pricing(3.0, 15.0)) == pytest.approx(13.5)
+
+
+def test_dotenv_fills_missing_variables_but_never_overrides(tmp_path, monkeypatch):
+    from recetario_ingest.config import load_dotenv
+
+    (tmp_path / ".env").write_text('# comment\nNEW_KEY="abc"\nKEPT=from-file\nEMPTY=\n')
+    monkeypatch.setenv("KEPT", "from-shell")
+    monkeypatch.delenv("NEW_KEY", raising=False)
+    monkeypatch.delenv("EMPTY", raising=False)
+
+    load_dotenv(tmp_path / ".env")
+
+    import os
+
+    assert (os.environ["NEW_KEY"], os.environ["KEPT"], "EMPTY" in os.environ) == ("abc", "from-shell", False)
+    load_dotenv(tmp_path / "missing")  # no file is fine

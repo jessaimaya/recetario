@@ -43,6 +43,14 @@ def find_by_identifier(conn: sqlite3.Connection, metadata: EpubMetadata) -> Sour
     return None
 
 
+def stages_run(conn: sqlite3.Connection, source: Source) -> set[str]:
+    """The stages that have finished at least one unit for this book."""
+    rows = conn.execute(
+        "SELECT DISTINCT stage FROM stage_runs WHERE source_id = ? AND status IN ('ok', 'cached')", (source.id,)
+    )
+    return {row["stage"] for row in rows}
+
+
 def register(conn: sqlite3.Connection, file_hash: str, file_format: str, metadata: EpubMetadata) -> Source:
     with conn:
         (source_id,) = conn.execute(

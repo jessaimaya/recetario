@@ -6,7 +6,9 @@ authors = [
     { name = "jessai", email = "maya.jessai@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "anthropic>=1.15.0",
+]
 
 [project.scripts]
 recetario-ingest = "recetario_ingest.cli:main"

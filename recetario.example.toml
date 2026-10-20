@@ -2,14 +2,17 @@
 books_dir = "local/books"
 db_path = "local/recetario.db"
 artifacts_dir = "local/artifacts"
+evals_dir = "local/evals"  # golden sets and eval results (private)
 locale = "es-MX"
 
 [llm]
 provider = "anthropic"
-# model = ""          # chosen at M4, once extraction exists
-# max_cost_usd = 5.0  # spending cap per run
+# model = ""          # without a model, ingest stops after segmenting and the extract stage is skipped
+# effort = "low"      # output_config.effort: low | medium | high | xhigh | max
+# max_cost_usd = 5.0  # spending cap per run, checked before each call
 
-# USD per million tokens, copied from the provider's price page. Needed for the --dry-run cost estimate.
+# USD per million tokens, copied from the provider's price page. Required for any run that calls the model
+# (cost tracking and the spending cap depend on it) and for the --dry-run cost estimate.
 # [pricing."<model id>"]
 # input_per_mtok = 0.0
 # output_per_mtok = 0.0

@@ -11,11 +11,13 @@ from recetario_ingest import db, epub, sources, stages
 from recetario_ingest.artifacts import ArtifactStore
 from recetario_ingest.config import Config
 from recetario_ingest.cost import cost_usd, estimate_tokens
+from recetario_ingest.extraction import EXTRACT_V1, default_prompts
 from recetario_ingest.llm.adapter import LlmAdapter
+from recetario_ingest.llm.factory import build_llm
 from recetario_ingest.llm.prompts import PromptRegistry
 from recetario_ingest.pipeline import Context, Stage, run_stages
 
-STAGE_NAMES = ("text", "segment")
+STAGE_NAMES = ("text", "segment", "extract")
 
 
 @dataclass
@@ -32,7 +34,7 @@ class BookReport:
     web_searches: int = 0
     cost_usd: float = 0.0
     seconds: float = 0.0
-    text_tokens: int = 0  # recipe text, which is what extraction will send
+    extraction_tokens: int = 0  # what the extract stage would send as input: recipe text plus the prompt, per recipe
     failures: list[str] = field(default_factory=list)
 
 
@@ -60,7 +62,11 @@ def ingest(
     if force_stage is not None and force_stage not in STAGE_NAMES:
         raise ValueError(f"unknown stage {force_stage!r}; stages are {', '.join(STAGE_NAMES)}")
     report = RunReport(dry_run=dry_run)
-    prompts = prompts or PromptRegistry()
+    prompts = prompts or default_prompts()
+    if force_stage == "extract" and not config.model:
+        raise ValueError("the extract stage needs a model: set model under [llm] in recetario.toml")
+    if llm is None and config.model and not dry_run:
+        llm = build_llm(config, prompts)
 
     with tempfile.TemporaryDirectory() as scratch:
         if dry_run:
@@ -76,7 +82,7 @@ def ingest(
             conn.close()
 
     if dry_run and config.model in config.pricing:
-        tokens = sum(book.text_tokens for book in report.books)
+        tokens = sum(book.extraction_tokens for book in report.books)
         report.estimated_cost_usd = cost_usd(tokens, 0, config.pricing[config.model])
     if not dry_run and any(book.outcome in ("ingested", "failed") for book in report.books):
         _save_report(config.artifacts_dir, report)
@@ -93,6 +99,11 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
     except epub.EpubError as error:
         return BookReport(path.name, "failed", str(error))
 
+    pipeline: list[Stage] = [stages.TextStage(path), stages.SegmentStage()]
+    if llm is not None:
+        pipeline.append(stages.ExtractStage())
+    stage_names = [stage.name for stage in pipeline]
+
     file_hash = sources.file_sha256(path)
     source = sources.find_by_hash(conn, file_hash)
     if source is None:
@@ -101,13 +112,12 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
             detail = f"same ISBN/ASIN as source {other.id} ({other.raw_title[:40]}), but a different file; not ingested"
             return BookReport(path.name, "skipped", detail)
         source = sources.register(conn, file_hash, "epub", metadata)
-    elif source.status == "done" and force_stage is None:
+    elif source.status == "done" and force_stage is None and set(stage_names) <= sources.stages_run(conn, source):
         return BookReport(path.name, "already done", source_id=source.id)
 
     source = sources.set_status(conn, source, "in_progress")
     store = ArtifactStore(artifacts_dir / source.slug)
     ctx = Context(source, store, prompts, llm, clock=time.monotonic, force_from=force_stage)
-    pipeline: list[Stage] = [stages.TextStage(path), stages.SegmentStage()]
     run = run_stages(conn, ctx, pipeline)
 
     book = BookReport(
@@ -126,7 +136,8 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
         segments = store.read_all("segment")
         for segment in segments:
             book.kinds[segment["kind"]] = book.kinds.get(segment["kind"], 0) + 1
-        book.text_tokens = sum(estimate_tokens(s["text"]) for s in segments if s["kind"] == "recipe")
+        overhead = estimate_tokens(EXTRACT_V1.system)
+        book.extraction_tokens = sum(estimate_tokens(s["text"]) + overhead for s in segments if s["kind"] == "recipe")
     sources.set_status(conn, source, "failed" if run.failures else "done")
     book.seconds = time.monotonic() - started
     return book
@@ -150,8 +161,8 @@ def format_report(report: RunReport, config: Config) -> str:
             recipes = book.kinds.get("recipe", 0)
             others = ", ".join(f"{count} {kind}" for kind, count in sorted(book.kinds.items()) if kind != "recipe")
             lines.append(f"  segments: {recipes} recipes" + (f", {others}" if others else ""))
-        if report.dry_run and book.text_tokens:
-            lines.append(f"  recipe text: ~{book.text_tokens:,} tokens (what extraction sends as input)")
+        if report.dry_run and book.extraction_tokens:
+            lines.append(f"  extraction input: ~{book.extraction_tokens:,} tokens (recipe text plus the prompt, per recipe)")
         if book.outcome in ("ingested", "failed") and not report.dry_run:
             lines.append(
                 f"  units: {book.units_run} run, {book.units_cached} cached · "
@@ -164,4 +175,6 @@ def format_report(report: RunReport, config: Config) -> str:
             lines.append(f"\nestimated input cost for extraction: ${report.estimated_cost_usd:.2f} (output not included)")
         else:
             lines.append("\nno price for the configured model, so no cost estimate; add [pricing.\"<model>\"] to recetario.toml")
+    if report.books and not config.model:
+        lines.append("\nextraction skipped: no model configured (set model under [llm] in recetario.toml)")
     return "\n".join(lines)

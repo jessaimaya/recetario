@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from recetario_ingest.artifacts import ArtifactStore
-from recetario_ingest.llm.adapter import LlmAdapter, Usage
+from recetario_ingest.llm.adapter import BudgetExceeded, LlmAdapter, Usage
 from recetario_ingest.llm.prompts import PromptRegistry
 from recetario_ingest.sources import Source
 
@@ -103,8 +103,12 @@ def run_stages(conn: sqlite3.Connection, ctx: Context, stages: list[Stage]) -> B
         except StageError as error:
             run.failures.append(f"{stage.name}: {error}")
             break
-        for unit in units:
-            _run_unit(conn, ctx, stage, unit, forcing, totals, run)
+        try:
+            for unit in units:
+                _run_unit(conn, ctx, stage, unit, forcing, totals, run)
+        except BudgetExceeded as error:  # every later call would be refused too, so stop; a re-run resumes
+            run.failures.append(f"{stage.name}: {error}")
+            break
         if totals.failed:
             break
     return run
@@ -122,6 +126,8 @@ def _run_unit(conn, ctx, stage, unit, forcing, totals, run) -> None:
             output = stage.run(ctx, unit)
             usage = output.usage
             ctx.store.put(stage.name, unit.key, key, output.data)
+    except BudgetExceeded:
+        raise
     except Exception as error:  # a bug or bad input in one unit shouldn't lose the others
         status = "failed"
         run.failures.append(f"{stage.name} {unit.key or 'book'}: {type(error).__name__}: {error}")

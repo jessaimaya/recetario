@@ -3,7 +3,9 @@
 import hashlib
 from pathlib import Path
 
-from recetario_ingest import epub, segment
+from dataclasses import asdict
+
+from recetario_ingest import epub, extraction, segment
 from recetario_ingest.pipeline import Context, Stage, StageError, StageOutput, Unit
 
 
@@ -77,3 +79,35 @@ class SegmentStage(Stage):
 def _recipe_key(src: str) -> str:
     """The locator as a name that is safe in a file name: text00000.html#fp1 -> text00000.html-fp1."""
     return src.replace("#", "-").replace("/", "_")
+
+
+class ExtractStage(Stage):
+    """Recipe level: ask the model for the structured recipe, check it, retry once on errors."""
+
+    name = "extract"
+    version = "1"
+    prompt_id = extraction.PROMPT_ID
+
+    def units(self, ctx: Context) -> list[Unit]:
+        if ctx.llm is None:
+            raise StageError("no model is configured")
+        return [
+            Unit(key=segment["recipe_key"], input_hash=_hash(segment["text"]), payload=segment)
+            for segment in ctx.store.read_all("segment")
+            if segment["kind"] == "recipe"
+        ]
+
+    def run(self, ctx: Context, unit: Unit) -> StageOutput:
+        segment = unit.payload
+        result = extraction.extract_recipe(ctx.llm, segment["text"], ctx.prompts.get(self.prompt_id).version)
+        return StageOutput(
+            {
+                "recipe_key": unit.key,
+                "locator": segment["locator"],
+                "status": result.status,
+                "attempts": result.attempts,
+                "extracted": result.extracted,
+                "issues": [asdict(issue) for issue in result.issues],
+            },
+            result.usage,
+        )

@@ -1,5 +1,6 @@
 """The config file (recetario.toml). Every key is optional; relative paths resolve against the file's folder."""
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -9,12 +10,24 @@ from recetario_ingest.db import REPO_ROOT
 
 DEFAULT_CONFIG_PATH = REPO_ROOT / "recetario.toml"
 
-_TOP_KEYS = {"books_dir", "db_path", "artifacts_dir", "locale", "llm", "pricing"}
-_LLM_KEYS = {"provider", "model", "max_cost_usd"}
+_TOP_KEYS = {"books_dir", "db_path", "artifacts_dir", "evals_dir", "locale", "llm", "pricing"}
+_LLM_KEYS = {"provider", "model", "effort", "max_cost_usd"}
 
 
 class ConfigError(Exception):
     pass
+
+
+def load_dotenv(path: Path = REPO_ROOT / ".env") -> None:
+    """Put KEY=value lines of .env into the environment, without overriding what is already set."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return
+    for line in lines:
+        key, separator, value = line.strip().partition("=")
+        if separator and key and not key.startswith("#") and value.strip():
+            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
 @dataclass(frozen=True)
@@ -22,9 +35,11 @@ class Config:
     books_dir: Path = REPO_ROOT / "local" / "books"
     db_path: Path = REPO_ROOT / "local" / "recetario.db"
     artifacts_dir: Path = REPO_ROOT / "local" / "artifacts"
+    evals_dir: Path = REPO_ROOT / "local" / "evals"
     locale: str = "es-MX"
     provider: str = "anthropic"
-    model: str | None = None
+    model: str | None = None  # no model means the stages that call one are skipped
+    effort: str = "low"  # output_config.effort: low | medium | high | xhigh | max
     max_cost_usd: float | None = None  # spending cap per run
     pricing: dict[str, Pricing] = field(default_factory=dict)  # by model id
 
@@ -51,9 +66,11 @@ def load_config(path: Path | None = None) -> Config:
         books_dir=base / data["books_dir"] if "books_dir" in data else defaults.books_dir,
         db_path=base / data["db_path"] if "db_path" in data else defaults.db_path,
         artifacts_dir=base / data["artifacts_dir"] if "artifacts_dir" in data else defaults.artifacts_dir,
+        evals_dir=base / data["evals_dir"] if "evals_dir" in data else defaults.evals_dir,
         locale=data.get("locale", defaults.locale),
         provider=llm.get("provider", defaults.provider),
         model=llm.get("model"),
+        effort=llm.get("effort", defaults.effort),
         max_cost_usd=llm.get("max_cost_usd"),
         pricing={model: _pricing(path, model, prices) for model, prices in data.get("pricing", {}).items()},
     )

@@ -147,7 +147,7 @@ def test_dry_run_counts_and_estimates_but_leaves_nothing_behind(config, tmp_path
     report = ingest.ingest(config, dry_run=True)
 
     (book,) = report.books
-    assert book.kinds["recipe"] == 4 and book.text_tokens > 0
+    assert book.kinds["recipe"] == 4 and book.extraction_tokens > 0
     assert not config.db_path.exists() and not config.artifacts_dir.exists()
     assert report.estimated_cost_usd is None
 
@@ -162,7 +162,7 @@ def test_dry_run_prices_the_input_when_the_config_has_a_price(config):
 
     report = ingest.ingest(priced, dry_run=True)
 
-    assert report.estimated_cost_usd == pytest.approx(report.books[0].text_tokens)
+    assert report.estimated_cost_usd == pytest.approx(report.books[0].extraction_tokens)
 
 
 def test_force_stage_reruns_from_that_stage_even_for_a_done_book(config):
@@ -175,7 +175,12 @@ def test_force_stage_reruns_from_that_stage_even_for_a_done_book(config):
 
 
 def test_unknown_force_stage_is_rejected(config):
-    with pytest.raises(ValueError, match="unknown stage 'extract'"):
+    with pytest.raises(ValueError, match="unknown stage 'bogus'"):
+        ingest.ingest(config, force_stage="bogus")
+
+
+def test_forcing_extract_without_a_model_is_rejected(config):
+    with pytest.raises(ValueError, match="needs a model"):
         ingest.ingest(config, force_stage="extract")
 
 
@@ -215,4 +220,90 @@ class ArtifactsOf:
 
     def segments(self):
         (folder,) = (p for p in self.config.artifacts_dir.iterdir() if p.name != "runs")
-        return [json.loads(p.read_text())["output"] for p in sorted((folder / "segment").glob("*.json"))]
+        return self.stage("segment")
+
+    def stage(self, name):
+        (folder,) = (p for p in self.config.artifacts_dir.iterdir() if p.name != "runs")
+        return [json.loads(p.read_text())["output"] for p in sorted((folder / name).glob("*.json"))]
+
+
+def sample_llm(cost_per_call=0.0, cap=None):
+    from fakes import perfect_extraction
+
+    from recetario_ingest.extraction import default_prompts
+    from recetario_ingest.llm.adapter import FakeLlm, MeteredLlm
+
+    prompts = default_prompts()
+    return prompts, MeteredLlm(FakeLlm(prompts, {"extract": perfect_extraction}, cost_per_call=cost_per_call), cap)
+
+
+def test_extraction_runs_per_recipe_and_is_cached_on_a_second_run(config):
+    sample_book(config.books_dir / "b.epub", recipes=3)
+    prompts, llm = sample_llm(cost_per_call=0.01)
+
+    (first,) = ingest.ingest(config, llm=llm, prompts=prompts).books
+    extracted = ArtifactsOf(config).stage("extract")
+    (second,) = ingest.ingest(config, llm=llm, prompts=prompts).books
+
+    assert first.outcome == "ingested" and first.cost_usd == pytest.approx(0.03) and len(extracted) == 3
+    assert {e["status"] for e in extracted} == {"ok"} and extracted[0]["extracted"]["ingredient_lines"]
+    assert second.outcome == "already done" and llm.spent_usd == pytest.approx(0.03)  # no new calls
+
+
+def test_a_book_ingested_without_a_model_is_extracted_once_a_model_is_added(config):
+    sample_book(config.books_dir / "b.epub", recipes=3)
+    ingest.ingest(config)
+    prompts, llm = sample_llm()
+
+    (book,) = ingest.ingest(config, llm=llm, prompts=prompts).books
+
+    assert book.outcome == "ingested" and book.units_run == 3 and len(ArtifactsOf(config).stage("extract")) == 3
+
+
+def test_the_spending_cap_stops_extraction_and_a_rerun_with_budget_resumes_it(config):
+    sample_book(config.books_dir / "b.epub", recipes=5)
+    prompts, llm = sample_llm(cost_per_call=0.4, cap=1.0)
+
+    (stopped,) = ingest.ingest(config, llm=llm, prompts=prompts).books
+
+    assert stopped.outcome == "failed" and "spending cap" in stopped.failures[0] and len(stopped.failures) == 1
+    assert len(ArtifactsOf(config).stage("extract")) == 3  # the third call started at $0.80, under the cap
+
+    prompts, fresh = sample_llm(cost_per_call=0.4, cap=5.0)
+    (resumed,) = ingest.ingest(config, llm=fresh, prompts=prompts).books
+
+    assert resumed.outcome == "ingested" and fresh.spent_usd == pytest.approx(0.8)  # only the two missing recipes
+
+
+def test_a_recipe_the_model_gets_wrong_is_kept_for_review_not_dropped(config):
+    from recetario_ingest.extraction import default_prompts
+    from recetario_ingest.llm.adapter import FakeLlm
+
+    sample_book(config.books_dir / "b.epub", recipes=2)
+    prompts = default_prompts()
+    llm = FakeLlm(prompts, {"extract": {"title": "x", "description": "", "meta": [], "ingredient_lines": ["9 invented"], "steps": ["s"], "equipment_mentions": [], "extras": []}})
+
+    (book,) = ingest.ingest(config, llm=llm, prompts=prompts).books
+
+    assert book.outcome == "ingested"
+    extracted = ArtifactsOf(config).stage("extract")
+    assert {e["status"] for e in extracted} == {"needs_review"} and {e["attempts"] for e in extracted} == {2}
+    assert extracted[0]["issues"][0]["rule"] == "ingredient_not_in_source"
+
+
+def test_extraction_only_covers_recipes_not_other_entries(config):
+    sample_book(config.books_dir / "b.epub", recipes=4)
+    prompts, llm = sample_llm()
+
+    ingest.ingest(config, llm=llm, prompts=prompts)
+
+    assert len(llm._inner.calls) == 4
+
+
+def test_dry_run_never_calls_the_model_even_when_one_is_given(config):
+    sample_book(config.books_dir / "b.epub")
+    prompts, llm = sample_llm()
+
+    report = ingest.ingest(config, dry_run=True, llm=llm, prompts=prompts)
+
+    assert llm._inner.calls == [] and report.books[0].extraction_tokens > 0
