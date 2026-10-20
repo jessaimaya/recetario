@@ -7,7 +7,7 @@ export type Row = Record<string, unknown>;
 
 /** The one thing the loader needs from a SQLite driver: node:sqlite in tests, SQLite WASM in the browser. */
 export interface Database {
-  all(sql: string): Row[];
+  all(sql: string, bind?: unknown[]): Row[];
 }
 
 export function loadSearchData(db: Database): SearchData {

@@ -43,7 +43,27 @@ Rules:
     template="{text}",
 )
 
+
+LOCALIZE_V2 = Prompt(
+    id=PROMPT_ID,
+    version="v2",
+    system="""You translate one recipe from English into Mexican Spanish (es-MX) for a cook in Mexico.
+
+You get the title, description, ingredient lines and steps, plus hints: for each ingredient line the es-MX name of the ingredient (the app's vocabulary) and sometimes a metric amount; and the es-MX names of the equipment.
+
+Rules:
+- Natural cooking Spanish, second person singular imperative for steps ("Precalienta el horno", "Mezcla"). No Spain-only words.
+- Use the hinted ingredient and equipment names exactly, in every line and step that mentions them ("jitomate", "horno"). Without a hint, use the word a Mexican market uses.
+- Keep the quantities. When a line has an "amount" hint, write that amount instead of the pounds or ounces in the original, and never convert anything yourself. Cups, tablespoons and teaspoons stay: taza, cucharada, cucharadita (cda., cdita.), pizca, diente de ajo, lata, paquete.
+- Temperatures only in °C. If the text gives both, keep the °C one. If it gives only °F, leave the number as written: code converts it afterwards.
+- Return exactly as many ingredient lines and steps as you were given, in the same order. Do not add, merge, drop or reword steps beyond translating them.
+- The bracketed hints after an ingredient line are for you only: never copy a bracket, a hint or an "es-MX name" into your answer.
+- Keep brand and product names. An empty description stays empty.""",
+    template="{text}",
+)
+
 _FAHRENHEIT = re.compile(r"(\d+(?:\.\d+)?)\s*(?:°|º|degrees?)\s*F\b", re.IGNORECASE)
+_HINT_ECHO = re.compile(r"\s*\[[^\]]*\]\s*$")
 _NUMBER = re.compile(r"\d+(?:[.,/]\d+)?")
 
 
@@ -78,6 +98,11 @@ def metric_amount(qty: float | None, unit: str | None) -> str | None:
 def celsius(match: re.Match) -> str:
     degrees = (float(match.group(1)) - 32) * 5 / 9
     return f"{round(degrees / 5) * 5:g}°C"
+
+
+def strip_hint_echo(translated: str, original: str) -> str:
+    """A model sometimes copies the hint brackets I gave it ("2 tazas de agua [agua]"); drop one unless the original had brackets."""
+    return translated if "[" in original else _HINT_ECHO.sub("", translated)
 
 
 def fahrenheit_to_celsius(text: str) -> str:
@@ -153,4 +178,6 @@ def localize_recipe(llm: LlmAdapter, version: str, recipe: dict) -> Localization
     translated = result.data if isinstance(result.data, dict) else None
     if translated and all(isinstance(translated.get(k), list) for k in ("steps",)):
         translated = {**translated, "steps": [fahrenheit_to_celsius(step) for step in translated["steps"]]}
+    if translated and isinstance(translated.get("ingredient_lines"), list) and len(translated["ingredient_lines"]) == len(recipe["ingredient_lines"]):
+        translated = {**translated, "ingredient_lines": [strip_hint_echo(text, line["text"]) for text, line in zip(translated["ingredient_lines"], recipe["ingredient_lines"])]}
     return Localization(translated, issues, attempts, usage)

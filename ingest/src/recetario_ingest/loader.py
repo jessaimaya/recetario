@@ -11,6 +11,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from recetario_ingest import lines
+from recetario_ingest.localize import strip_hint_echo
 from recetario_ingest.terms import normalize_term
 from recetario_ingest.validate import parse_duration_minutes
 from recetario_ingest.vocabulary import Vocabulary
@@ -52,7 +53,7 @@ def load_recipes(
             _equipment(conn, recipe_id, item["extracted"], vocabulary["equipment"], report)
             _attributes(conn, recipe_id, item["extracted"], vocabulary["attribute_key"], report)
             if localized and item["recipe_key"] in localized:
-                _translations(conn, recipe_id, raw_ids, localized[item["recipe_key"]], report)
+                _translations(conn, recipe_id, raw_ids, localized[item["recipe_key"]], item["extracted"]["ingredient_lines"], report)
     return report
 
 
@@ -159,7 +160,7 @@ def _attributes(conn, recipe_id: int, data: dict, vocabulary: Vocabulary, report
                         value = excluded.value, unit = excluded.unit, per = excluded.per, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                     WHERE attributes.provenance != 'manual'
                     """,
-                    (recipe_id, entry.id, str(value), info["unit"], per),
+                    (recipe_id, entry.id, f"{value:g}" if isinstance(value, float) else str(value), info["unit"], per),
                 )
                 report.attributes += 1
 
@@ -181,7 +182,7 @@ def _value(value_type: str, text: str, unit: str | None = None) -> float | int |
     return text.strip() or None
 
 
-def _translations(conn, recipe_id: int, raw_ids: dict[str, list[int]], artifact: dict, report: LoadReport) -> None:
+def _translations(conn, recipe_id: int, raw_ids: dict[str, list[int]], artifact: dict, originals: list[str], report: LoadReport) -> None:
     version = artifact.get("prompt_version")
 
     def put(owner_kind: str, owner_id: int, text: str | None) -> None:
@@ -201,6 +202,7 @@ def _translations(conn, recipe_id: int, raw_ids: dict[str, list[int]], artifact:
 
     put("recipe_title", recipe_id, artifact.get("title"))
     put("recipe_description", recipe_id, artifact.get("description"))
-    for section, key in (("ingredients", "ingredient_lines"), ("steps", "steps")):
-        for raw_id, text in zip(raw_ids[section], artifact.get(key, [])):
-            put("raw_line", raw_id, text)
+    for raw_id, text, original in zip(raw_ids["ingredients"], artifact.get("ingredient_lines", []), originals):
+        put("raw_line", raw_id, strip_hint_echo(text, original))  # older artifacts still carry the echoed hint
+    for raw_id, text in zip(raw_ids["steps"], artifact.get("steps", [])):
+        put("raw_line", raw_id, text)

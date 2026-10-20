@@ -48,7 +48,7 @@ def test_writes_recipe_lines_equipment_and_attributes(conn, source):
     ]
     assert rows(conn, "SELECT e.name_en, re.provenance FROM recipe_equipment re JOIN vocab_entries e ON e.id = re.equipment_id") == [("oven", "inferred")]
     assert rows(conn, "SELECT e.name_en, a.value, a.unit, a.per, a.provenance FROM attributes a JOIN vocab_entries e ON e.id = a.key_id ORDER BY e.name_en") == [
-        ("calories_kcal", "84.0", "kcal", "serving", "book"), ("fat_g", "7.1", "g", "serving", "book"),
+        ("calories_kcal", "84", "kcal", "serving", "book"), ("fat_g", "7.1", "g", "serving", "book"),
     ]
 
 
@@ -134,3 +134,12 @@ def test_a_value_with_the_wrong_unit_is_not_stored(conn, source):
     report = load_recipes(conn, source.id, [artifact(extras=extras)])
     assert report.skipped_values == 1 and report.attributes == 1
     assert rows(conn, "SELECT e.name_en FROM attributes a JOIN vocab_entries e ON e.id = a.key_id") == [("fat_g",)]
+
+
+def test_old_artifacts_with_echoed_hints_load_clean(conn, source):
+    echoed = translation("v1")
+    echoed["ingredient_lines"] = ["2 libras de papa [papa]", "taza de aceite [aceite]", "sal [sal]"]
+    load_recipes(conn, source.id, [artifact()], localized={"r1": echoed})
+    assert rows(conn, "SELECT l.text FROM localized_texts l JOIN raw_lines r ON r.id = l.owner_id WHERE l.owner_kind = 'raw_line' AND r.section = 'ingredients' ORDER BY r.position") == [
+        ("2 libras de papa",), ("taza de aceite",), ("sal",),
+    ]

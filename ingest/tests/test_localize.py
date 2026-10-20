@@ -110,3 +110,17 @@ def test_converted_lengths_and_volumes_and_two_word_plurals_are_not_flagged():
     ])
     got = answer(ingredient_lines=["4 papas, en cubos de 1.3 cm", "1 botella (473 ml) de aderezo", "2 cebollas cambray"])
     assert check(source, got) == []
+
+
+def test_an_echoed_hint_is_stripped_unless_the_original_had_brackets():
+    from recetario_ingest.localize import strip_hint_echo
+
+    assert strip_hint_echo("2 tazas de agua [agua]", "2 cups water") == "2 tazas de agua"
+    assert strip_hint_echo("1 cda. aceite [es-MX name: aceite; amount: x]", "1 tbsp. oil") == "1 cda. aceite"
+    assert strip_hint_echo("1 lata [340 g]", "1 can [12 oz]") == "1 lata [340 g]"
+
+
+def test_localize_recipe_cleans_echoed_hints_in_the_answer():
+    llm = FakeLlm(default_prompts(), {"localize": lambda text: answer(ingredient_lines=["905 g de papa [papa]", "1/4 taza de aceite de oliva [aceite de oliva]"])})
+    result = localize_recipe(llm, "v2", recipe())
+    assert result.translated["ingredient_lines"] == ["905 g de papa", "1/4 taza de aceite de oliva"]

@@ -7,7 +7,22 @@
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    "lib": [
+      "es2023",
+      "dom",
+      "dom.iterable"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
   },
-  "include": ["src", "test", "vitest.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "vitest.config.ts",
+    "vite.config.ts"
+  ]
 }
