@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 
 import type { Need } from "../core/types";
-import { entryById } from "../store";
+import { entryById, results } from "../store";
 
 /** Lower case without accents, so "jalapeño" is found by typing "jalapeno". */
 export function fold(text: string): string {
@@ -61,6 +61,31 @@ export function Empty(props: { title: string; children?: ComponentChildren }) {
     <div class="empty">
       <h2>{props.title}</h2>
       {props.children}
+    </div>
+  );
+}
+
+/** An on/off control that shows its state: a native checkbox drawn as a switch, with a fixed label. */
+export function Switch(props: { checked: boolean; label: string; onChange: (checked: boolean) => void }) {
+  return (
+    <label class="switch">
+      <input type="checkbox" role="switch" checked={props.checked} onChange={(event) => props.onChange(event.currentTarget.checked)} />
+      <span class="track" aria-hidden="true"><span class="thumb" /></span>
+      <span class="switch-label">{props.label}</span>
+    </label>
+  );
+}
+
+/** Sticks above the tab bar on the setup screens: changes save by themselves, this is the way forward. */
+export function DoneBar() {
+  const ready = results.value.filter((result) => result.missing.length === 0).length;
+  const near = results.value.length - ready;
+  return (
+    <div class="donebar">
+      <a class="button primary" href="#/">
+        Ver recetas
+        <small>{ready === 0 ? (near === 0 ? "" : `${count(near, "casi lista", "casi listas")}`) : count(ready, "lista para cocinar", "listas para cocinar")}</small>
+      </a>
     </div>
   );
 }

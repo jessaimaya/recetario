@@ -37,7 +37,7 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-bottom: 190px; }
 
 body {
   margin: 0;
@@ -49,7 +49,7 @@ body {
 main {
   max-width: 720px;
   margin: 0 auto;
-  padding: 0 var(--gutter) calc(var(--tabs) + 24px + env(safe-area-inset-bottom));
+  padding: 0 var(--gutter) calc(var(--tabs) + 110px + env(safe-area-inset-bottom));
 }
 
 h1 { font-size: 1.7rem; line-height: 1.2; margin: 24px 0 8px; letter-spacing: -0.01em; }
@@ -190,3 +190,37 @@ input[type="search"] {
 @media (prefers-reduced-motion: no-preference) {
   button, .recipes a { transition: border-color 0.15s, background 0.15s; }
 }
+
+/* On/off switch: a checkbox drawn as a track and thumb, with its label beside it */
+.switch { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; flex: none; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch .track {
+  position: relative; width: 48px; height: 28px; border-radius: 999px;
+  background: var(--surface-2); border: 2px solid var(--muted); transition: background 0.15s, border-color 0.15s;
+}
+.switch .thumb {
+  position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--muted); transition: transform 0.15s, background 0.15s;
+}
+.switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + .track .thumb { transform: translateX(20px); background: var(--accent-text); }
+.switch input:focus-visible + .track { outline: 3px solid var(--accent); outline-offset: 2px; }
+.switch-label { font-size: 0.95rem; min-width: 5.2em; }
+.always { color: var(--muted); font-size: 0.9rem; }
+.tally { background: var(--surface-2); border-radius: var(--radius); padding: 10px 14px; margin: 0 0 12px; }
+
+/* The way forward from the setup screens */
+.donebar {
+  position: fixed; left: 0; right: 0; z-index: 9;
+  bottom: calc(var(--tabs) + env(safe-area-inset-bottom));
+  padding: 10px var(--gutter);
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+  display: flex; justify-content: center; pointer-events: none;
+}
+.button {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 52px; padding: 8px 28px; border-radius: 999px; text-decoration: none; pointer-events: auto;
+  font-weight: 600; box-shadow: 0 6px 18px rgb(0 0 0 / 0.2);
+}
+.button.primary { background: var(--accent); color: var(--accent-text); }
+.button small { color: inherit; opacity: 0.85; font-weight: 500; }

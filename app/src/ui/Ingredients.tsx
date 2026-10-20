@@ -3,7 +3,7 @@ import { useSignal } from "@preact/signals";
 import type { Availability } from "../core/types";
 import type { Entry } from "../db/queries";
 import { changeAvailability, ingredients, pantry, togglePantry } from "../store";
-import { Empty, Segmented, fold } from "./parts";
+import { DoneBar, Empty, Segmented, Switch, fold } from "./parts";
 
 type Filter = "all" | "home" | "unknown";
 
@@ -28,7 +28,7 @@ export function Ingredients() {
   return (
     <div class="page">
       <h1>Despensa</h1>
-      <p class="lede">Marca lo que tienes en casa y si cada ingrediente se consigue donde vives. Así sé qué recetas te convienen.</p>
+      <p class="lede">Marca lo que tienes en casa y si cada ingrediente se consigue donde vives. Así sé qué recetas te convienen. Los cambios se guardan solos.</p>
       <div class="toolbar">
         <input type="search" placeholder="Buscar ingrediente" value={query.value} onInput={(event) => (query.value = event.currentTarget.value)} aria-label="Buscar ingrediente" />
         <Segmented
@@ -52,6 +52,7 @@ export function Ingredients() {
           Básicos que doy por hechos: {staples.map((entry) => entry.label).join(", ")}.
         </p>
       )}
+      <DoneBar />
     </div>
   );
 }
@@ -65,9 +66,7 @@ function Row({ entry }: { entry: Entry }) {
           <strong>{entry.label}</strong>
           <small>{entry.nameEn}</small>
         </div>
-        <button type="button" class={`chip ${home ? "on" : ""}`} aria-pressed={home} onClick={() => togglePantry(entry.id)}>
-          {home ? "En casa" : "No tengo"}
-        </button>
+        <Switch checked={home} label="En casa" onChange={(checked) => togglePantry(entry.id, checked)} />
       </div>
       <Segmented label={`${entry.label}: disponibilidad`} value={entry.availability} options={AVAILABILITY} onChange={(value) => changeAvailability(entry.id, value)} />
     </li>
