@@ -15,6 +15,8 @@ export interface Entry {
   isBasic: boolean;
   availability: Availability;
   owned: boolean;
+  /** Other names that mean the same thing (English and Spanish), for matching what a person types. */
+  aliases: string[];
 }
 
 export interface RecipeCard {
@@ -71,8 +73,15 @@ export function loadEntries(db: Database): Entry[] {
      ORDER BY e.id`,
     [LOCALE],
   );
+  const aliases = new Map<number, string[]>();
+  for (const row of db.all("SELECT entry_id, text_normalized FROM aliases")) {
+    const list = aliases.get(Number(row["entry_id"])) ?? [];
+    list.push(text(row["text_normalized"]));
+    aliases.set(Number(row["entry_id"]), list);
+  }
   return rows.map((row) => ({
     id: Number(row["id"]),
+    aliases: aliases.get(Number(row["id"])) ?? [],
     kind: row["kind"] as "ingredient" | "equipment",
     nameEn: text(row["name_en"]),
     label: maybeText(row["label"]) ?? text(row["name_en"]),

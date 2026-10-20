@@ -6,6 +6,7 @@ import { loadSearchData } from "./db/load";
 import { deleteValue, readValue, writeValue } from "./db/persist";
 import { type DatabaseSummary, type Entry, type RecipeCard, loadEntries, loadRecipeCards, setAvailability, setOwned, summarize } from "./db/queries";
 import { type AppDatabase, openDatabase } from "./db/sqlite";
+import { resolveTerm, splitTerms } from "./ui/find";
 
 export type Status = "loading" | "empty" | "ready" | "error";
 
@@ -19,6 +20,11 @@ export const devDatabaseAvailable = signal(false);
 
 /** What I have at home right now, as entry ids. Kept by English name so it survives replacing the database file. */
 export const pantry = signal<ReadonlySet<EntryId>>(new Set());
+/** Things typed into the pantry that the vocabulary doesn't have yet; kept, and matched again whenever the database changes. */
+export const pantryExtras = signal<readonly string[]>([]);
+export const pantryNote = signal<string | null>(null);
+let noteParts: string[] = [];
+let noteAt = 0;
 export const maxMissing = signal(readNumber("maxMissing") ?? 1);
 export const maxTotalMin = signal<number | undefined>(readNumber("maxTotalMin"));
 /** Questions dismissed for this visit. */
@@ -126,12 +132,65 @@ function fail(error: unknown): void {
 async function restorePantry(): Promise<void> {
   const names = (await readValue<string[]>("pantry")) ?? [];
   const byName = new Map(ingredients.value.map((entry) => [entry.nameEn, entry.id]));
-  pantry.value = new Set(names.flatMap((name) => byName.get(name) ?? []));
+  const restored = new Set(names.flatMap((name) => byName.get(name) ?? []));
+  // Terms the vocabulary couldn't place last time may fit now (a review pass added them).
+  const stillUnknown: string[] = [];
+  for (const term of (await readValue<string[]>("pantryExtras")) ?? []) {
+    const entry = resolveTerm(term, ingredients.value);
+    if (entry && !entry.isStaple) restored.add(entry.id);
+    else if (!entry) stillUnknown.push(term);
+  }
+  batch(() => {
+    pantry.value = restored;
+    pantryExtras.value = stillUnknown;
+  });
+  savePantry();
 }
 
 function savePantry(): void {
   const names = [...pantry.value].flatMap((id) => entryById.value.get(id)?.nameEn ?? []);
   void writeValue("pantry", names);
+  void writeValue("pantryExtras", [...pantryExtras.value]);
+}
+
+/** Adds everything typed into the pantry field ("brócoli, tortillas y huevo") and says what happened to each term. */
+export function addTerms(input: string): void {
+  const added: string[] = [];
+  const staples: string[] = [];
+  const unknown: string[] = [];
+  const next = new Set(pantry.value);
+  for (const term of splitTerms(input)) {
+    const entry = resolveTerm(term, ingredients.value);
+    if (entry === null) unknown.push(term);
+    else if (entry.isStaple) staples.push(entry.label);
+    else {
+      next.add(entry.id);
+      added.push(entry.label);
+    }
+  }
+  const extras = [...pantryExtras.value];
+  for (const term of unknown) if (!extras.some((known) => known.toLowerCase() === term.toLowerCase())) extras.push(term);
+  const parts = [
+    added.length > 0 ? `Agregué: ${[...new Set(added)].join(", ")}.` : null,
+    staples.length > 0 ? `Ya doy por hechos: ${[...new Set(staples)].join(", ")}.` : null,
+    unknown.length > 0
+      ? `Sin reconocer: ${unknown.join(", ")}. Aún no ${unknown.length === 1 ? "está en el vocabulario; lo guardo y se unirá solo" : "están en el vocabulario; los guardo y se unirán solos"} cuando exista${unknown.length === 1 ? "" : "n"}.`
+      : null,
+  ].filter((part) => part !== null);
+  // Typing "brócoli, tortillas" commits twice (at the comma, then at Enter); what happened to each belongs in one message.
+  noteParts = Date.now() - noteAt < 8000 ? [...noteParts, ...parts].slice(-4) : parts;
+  noteAt = Date.now();
+  batch(() => {
+    pantry.value = next;
+    pantryExtras.value = extras;
+    pantryNote.value = noteParts.length > 0 ? noteParts.join(" ") : null;
+  });
+  savePantry();
+}
+
+export function removeExtra(term: string): void {
+  pantryExtras.value = pantryExtras.value.filter((known) => known !== term);
+  savePantry();
 }
 
 export function togglePantry(id: EntryId, on?: boolean): void {
@@ -195,13 +254,14 @@ export function downloadDatabase(): void {
 export async function resetData(): Promise<void> {
   database?.close();
   database = null;
-  await Promise.all([deleteValue("db"), deleteValue("pantry")]);
+  await Promise.all([deleteValue("db"), deleteValue("pantry"), deleteValue("pantryExtras")]);
   batch(() => {
     entries.value = [];
     cards.value = new Map();
     searchData.value = null;
     summary.value = null;
     pantry.value = new Set();
+    pantryExtras.value = [];
     status.value = "empty";
   });
 }

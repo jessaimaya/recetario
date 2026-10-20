@@ -3,10 +3,7 @@ import type { ComponentChildren } from "preact";
 import type { Need } from "../core/types";
 import { entryById, results } from "../store";
 
-/** Lower case without accents, so "jalapeño" is found by typing "jalapeno". */
-export function fold(text: string): string {
-  return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-}
+export { fold } from "../text";
 
 export function minutes(total: number | null): string | null {
   if (total === null) return null;

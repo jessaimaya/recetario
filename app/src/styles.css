@@ -121,8 +121,16 @@ button.chip.on::after, .mark::after {
 /* A long name gets an underline stroke instead of a circle, which would flatten across the text */
 .mark.long::after { inset: auto -2px -4px -2px; height: 7px; border: 0; border-bottom: 1.5px solid var(--mark); border-radius: 0 0 55% 45% / 0 0 100% 100%; transform: rotate(-0.8deg); }
 .combo { position: relative; }
+.combo-row { display: flex; align-items: flex-end; gap: 14px; }
+.combo-row input { flex: 1; min-width: 0; }
+.combo .add { flex: none; }
+button:disabled { opacity: 0.35; cursor: default; }
+button:disabled:hover { background: var(--ink); color: var(--paper); }
+.pantry .note { margin: 10px 0 0; }
+button.chip.pending { color: var(--muted); font-style: italic; text-decoration: underline dotted var(--mark) 2px; text-underline-offset: 5px; }
+button.chip.pending:hover { color: var(--mark-text); }
 .suggestions {
-  position: absolute; z-index: 5; left: 0; right: 0; margin: 2px 0 0; padding: 4px 0; list-style: none;
+  position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin: 2px 0 0; padding: 4px 0; list-style: none;
   background: var(--paper); border: 1px solid var(--ink);
 }
 .suggestions button { width: 100%; border: 0; text-align: left; text-transform: none; letter-spacing: 0; font-size: 1.15rem; font-family: var(--serif); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }

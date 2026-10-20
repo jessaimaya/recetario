@@ -2,10 +2,11 @@ import { useSignal } from "@preact/signals";
 
 import type { RankedRecipe } from "../core/types";
 import {
-  answerAvailability, answerHave, answered, blocked, cards, dismiss, entryById, ingredients, maxMissing,
-  maxTotalMin, openQuestions, pantry, results, setMaxMissing, setMaxTotalMin, slots, togglePantry,
+  addTerms, answerAvailability, answerHave, answered, blocked, cards, dismiss, entryById, ingredients, maxMissing,
+  maxTotalMin, openQuestions, pantry, pantryExtras, pantryNote, removeExtra, results, setMaxMissing, setMaxTotalMin, slots, togglePantry,
 } from "../store";
-import { Card, Empty, Segmented, count, fold, minutes, needText } from "./parts";
+import { findEntries } from "./find";
+import { Card, Empty, Segmented, count, minutes, needText } from "./parts";
 import { useRail } from "./rail";
 
 const GROUP_LIMIT = 30;
@@ -48,13 +49,25 @@ export function Search() {
 function Pantry() {
   const query = useSignal("");
   const chosen = [...pantry.value].map((id) => entryById.value.get(id)).filter((entry) => entry !== undefined);
-  const needle = fold(query.value.trim());
-  const suggestions =
-    needle === ""
-      ? []
-      : ingredients.value
-          .filter((entry) => !entry.isStaple && !pantry.value.has(entry.id) && (fold(entry.label).includes(needle) || fold(entry.nameEn).includes(needle)))
-          .slice(0, 6);
+  const typed = query.value.trim();
+  const suggestions = typed === "" ? [] : findEntries(typed, ingredients.value.filter((entry) => !entry.isStaple && !pantry.value.has(entry.id)));
+
+  const commit = (text: string) => {
+    if (text.trim() === "") return;
+    addTerms(text);
+    query.value = "";
+  };
+  const onInput = (value: string) => {
+    // a comma ends a term: take what is complete, keep what is still being typed
+    const cut = Math.max(value.lastIndexOf(","), value.lastIndexOf(";"));
+    if (cut >= 0) {
+      addTerms(value.slice(0, cut));
+      query.value = value.slice(cut + 1).trimStart();
+    } else {
+      query.value = value;
+    }
+  };
+
   return (
     <section aria-labelledby="pantry-title" class="pantry">
       <h2 id="pantry-title">En casa</h2>
@@ -66,27 +79,38 @@ function Pantry() {
             </button>
           </li>
         ))}
+        {pantryExtras.value.map((term) => (
+          <li key={`extra:${term}`}>
+            <button type="button" class="chip pending" onClick={() => removeExtra(term)} aria-label={`Quitar ${term}, sin reconocer`} title="Aún no está en el vocabulario. Toca para quitar">
+              {term}
+            </button>
+          </li>
+        ))}
       </ul>
-      <div class="combo">
-        <input
-          type="search"
-          placeholder="Agrega lo que tienes…"
-          value={query.value}
-          onInput={(event) => (query.value = event.currentTarget.value)}
-          aria-label="Agregar ingrediente"
-          autocomplete="off"
-        />
+      <form
+        class="combo"
+        onSubmit={(event) => {
+          event.preventDefault();
+          commit(query.value);
+        }}
+      >
+        <div class="combo-row">
+          <input
+            type="search"
+            placeholder="Escribe lo que tienes…"
+            value={query.value}
+            onInput={(event) => onInput(event.currentTarget.value)}
+            aria-label="Agregar ingredientes"
+            enterkeyhint="done"
+            autocomplete="off"
+          />
+          <button type="submit" class="primary add" disabled={typed === ""}>Agregar</button>
+        </div>
         {suggestions.length > 0 && (
           <ul class="suggestions">
             {suggestions.map((entry) => (
               <li key={entry.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    togglePantry(entry.id, true);
-                    query.value = "";
-                  }}
-                >
+                <button type="button" onClick={() => commit(entry.label)}>
                   {entry.label}
                   <small>{entry.nameEn}</small>
                 </button>
@@ -94,7 +118,8 @@ function Pantry() {
             ))}
           </ul>
         )}
-      </div>
+      </form>
+      {pantryNote.value && <p class="note" aria-live="polite">{pantryNote.value}</p>}
     </section>
   );
 }
