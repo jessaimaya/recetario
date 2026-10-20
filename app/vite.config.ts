@@ -32,7 +32,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
-      workbox: { globPatterns: ["**/*.{js,css,html,wasm,svg,png}"], maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 },
+      workbox: { globPatterns: ["**/*.{js,css,html,wasm,svg,png,woff2}"], maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 },
       manifest: {
         name: "Recetario",
         short_name: "Recetario",

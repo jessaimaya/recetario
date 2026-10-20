@@ -5,6 +5,7 @@ import { Data, ImportBox } from "./Data";
 import { Equipment } from "./Equipment";
 import { Ingredients } from "./Ingredients";
 import { Recipe } from "./Recipe";
+import { railText, useRail } from "./rail";
 import { Search } from "./Search";
 
 const route = signal(location.hash || "#/");
@@ -14,22 +15,24 @@ addEventListener("hashchange", () => {
 });
 
 const TABS = [
-  { href: "#/", text: "Cocinar", icon: "🍳" },
-  { href: "#/despensa", text: "Despensa", icon: "🥕" },
-  { href: "#/cocina", text: "Cocina", icon: "🔪" },
-  { href: "#/datos", text: "Datos", icon: "⚙️" },
+  { href: "#/", text: "Cocinar" },
+  { href: "#/despensa", text: "Despensa" },
+  { href: "#/cocina", text: "Cocina" },
+  { href: "#/datos", text: "Datos" },
 ];
 
 export function App() {
   const current = route.value;
   return (
     <>
-      <main>{status.value === "ready" ? <Screen path={current} /> : <Welcome />}</main>
+      <div class="sheet">
+        <aside class="rail" aria-hidden="true"><span>{railText.value}</span></aside>
+        <main>{status.value === "ready" ? <Screen path={current} /> : <Welcome />}</main>
+      </div>
       {status.value === "ready" && (
         <nav class="tabs" aria-label="Secciones">
           {TABS.map((tab) => (
             <a key={tab.href} href={tab.href} aria-current={isActive(current, tab.href) ? "page" : undefined}>
-              <span aria-hidden="true">{tab.icon}</span>
               {tab.text}
             </a>
           ))}
@@ -54,6 +57,7 @@ function Screen({ path }: { path: string }) {
 }
 
 function Welcome() {
+  useRail("Recetario ▪ Lo que tienes ▪ Lo que cocinas");
   if (status.value === "loading") {
     return <div class="page center"><p class="lede">Abriendo tus recetas…</p></div>;
   }

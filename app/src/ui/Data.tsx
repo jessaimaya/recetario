@@ -2,8 +2,10 @@ import { useSignal } from "@preact/signals";
 
 import { devDatabaseAvailable, downloadDatabase, errorMessage, importDevDatabase, importFile, resetData, status, summary } from "../store";
 import { Card } from "./parts";
+import { useRail } from "./rail";
 
 export function Data() {
+  useRail("Recetario ▪ Datos ▪ En este dispositivo");
   const confirming = useSignal(false);
   const info = summary.value;
   return (

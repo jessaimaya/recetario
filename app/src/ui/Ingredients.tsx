@@ -4,6 +4,7 @@ import type { Availability } from "../core/types";
 import type { Entry } from "../db/queries";
 import { changeAvailability, ingredients, pantry, togglePantry } from "../store";
 import { DoneBar, Empty, Segmented, Switch, fold } from "./parts";
+import { useRail } from "./rail";
 
 type Filter = "all" | "home" | "unknown";
 
@@ -14,6 +15,7 @@ const AVAILABILITY: { value: Availability; text: string }[] = [
 ];
 
 export function Ingredients() {
+  useRail("Recetario ▪ Despensa ▪ Lo que hay en casa");
   const query = useSignal("");
   const filter = useSignal<Filter>("all");
   const needle = fold(query.value.trim());

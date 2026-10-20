@@ -29,6 +29,8 @@ export interface RecipeCard {
 export interface RecipeLine {
   original: string;
   translated: string | null;
+  /** The vocabulary entries this line asks for (more than one for "salt and pepper"); empty when unresolved. */
+  ingredientIds: EntryId[];
   /** Not yet matched to the vocabulary, so the recipe is kept out of search results. */
   unresolved: boolean;
 }
@@ -121,13 +123,19 @@ export function loadRecipeDetail(db: Database, id: RecipeId): RecipeDetail | nul
     db
       .all(
         `SELECT l.text_original, t.text AS translated,
-                (SELECT COUNT(*) FROM recipe_lines AS rl WHERE rl.raw_line_id = l.id AND rl.ingredient_id IS NULL AND rl.sub_recipe_id IS NULL) AS open
+                (SELECT COUNT(*) FROM recipe_lines AS rl WHERE rl.raw_line_id = l.id AND rl.ingredient_id IS NULL AND rl.sub_recipe_id IS NULL) AS open,
+                (SELECT group_concat(rl.ingredient_id) FROM recipe_lines AS rl WHERE rl.raw_line_id = l.id AND rl.ingredient_id IS NOT NULL) AS ids
          FROM raw_lines AS l
          LEFT JOIN localized_texts AS t ON t.owner_kind = 'raw_line' AND t.owner_id = l.id AND t.locale = ?
          WHERE l.recipe_id = ? AND l.section = ? ORDER BY l.position`,
         [LOCALE, id, section],
       )
-      .map((line) => ({ original: text(line["text_original"]), translated: maybeText(line["translated"]), unresolved: Number(line["open"]) > 0 }));
+      .map((line) => ({
+        original: text(line["text_original"]),
+        translated: maybeText(line["translated"]),
+        ingredientIds: maybeText(line["ids"])?.split(",").map(Number) ?? [],
+        unresolved: Number(line["open"]) > 0,
+      }));
 
   const equipment = db
     .all(

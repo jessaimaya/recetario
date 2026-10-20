@@ -6,10 +6,12 @@ import {
   maxTotalMin, pantry, results, setMaxMissing, setMaxTotalMin, togglePantry,
 } from "../store";
 import { Card, Empty, Segmented, count, fold, minutes, needText } from "./parts";
+import { useRail } from "./rail";
 
 const GROUP_LIMIT = 30;
 
 export function Search() {
+  useRail("Recetario ▪ ¿Qué cocino hoy? ▪ Con lo que tienes");
   const found = results.value;
   const none = found.length === 0;
   return (
@@ -59,8 +61,8 @@ function Pantry() {
       <ul class="chips">
         {chosen.map((entry) => (
           <li key={entry.id}>
-            <button type="button" class="chip on" onClick={() => togglePantry(entry.id, false)} aria-label={`Quitar ${entry.label}`}>
-              {entry.label} <span aria-hidden="true">×</span>
+            <button type="button" class="chip on" onClick={() => togglePantry(entry.id, false)} aria-label={`Quitar ${entry.label}`} title="Toca para quitar">
+              {entry.label}
             </button>
           </li>
         ))}

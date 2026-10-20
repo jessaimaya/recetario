@@ -1,7 +1,9 @@
 import { blocked, changeOwned, equipment } from "../store";
 import { DoneBar, Empty, Switch, count } from "./parts";
+import { useRail } from "./rail";
 
 export function Equipment() {
+  useRail("Recetario ▪ Cocina ▪ Tu equipo");
   const list = [...equipment.value].sort((a, b) => a.label.localeCompare(b.label, "es"));
   const have = list.filter((entry) => entry.isBasic || entry.owned).length;
   const stuck = blocked.value.equipment ?? 0;
