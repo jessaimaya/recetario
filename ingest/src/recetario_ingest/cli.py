@@ -33,6 +33,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--dry-run", action="store_true", help="count segments and estimate tokens and cost; write nothing, call nothing")
     run.add_argument("--force-stage", choices=ingest.STAGE_NAMES, help="re-run this stage and the ones after it")
 
+    load_parser = commands.add_parser("load", help="write every finished book's recipes into the database again (after a review pass); calls no model")
+    load_parser.add_argument("--config", type=Path)
+
     ev = commands.add_parser("eval", help="score a prompt against the golden set")
     ev_commands = ev.add_subparsers(dest="eval_command", required=True)
     ev_extract = ev_commands.add_parser("extract", help="score extraction; calls the model unless --dry-run")
@@ -59,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
         return _db_init(args.db, fresh=args.fresh, fixtures=args.fixtures)
     if args.command == "ingest":
         return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage)
+    if args.command == "load":
+        return _load(args.config)
     if args.command == "review":
         return _review(args.config, args.kind, args.auto)
     if args.command == "eval" and args.eval_command == "resolve":
@@ -152,6 +157,23 @@ def _eval_resolve(config_path: Path | None, cases_dir: Path | None, version: str
     with (config.evals_dir / "results.jsonl").open("a", encoding="utf-8") as results:
         entry = {"eval": "resolve", "date": date.today().isoformat(), "prompt": version, "model": config.model, "summary": summary, "sweep": sweep, "cases": [asdict(s) for s in scores]}
         results.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return 0
+
+
+def _load(config_path: Path | None) -> int:
+    try:
+        config = config_module.load_config(config_path)
+    except config_module.ConfigError as error:
+        print(error, file=sys.stderr)
+        return 2
+    results = ingest.load_all(config)
+    if not results:
+        print("no finished books to load; run ingest first")
+    for title, report in results:
+        print(
+            f"{title}: {report.recipes} recipes · {report.lines} ingredient lines ({report.unresolved_lines} unresolved) · "
+            f"{report.equipment} equipment · {report.attributes} attributes · {report.translations} translations"
+        )
     return 0
 
 

@@ -54,3 +54,19 @@ def new_answer(name_en, name_es_mx, confidence=0.8, parent_en="", value_type="",
 
 def _blank():
     return {"name_en": "", "name_es_mx": "", "parent_en": "", "value_type": "", "unit": ""}
+
+
+def echo_localization(text: str) -> dict:
+    """Stands in for the translator: returns every line with an "es: " prefix, as many as it was given."""
+    title, section, ingredient_lines, steps = "", None, [], []
+    for line in text.splitlines():
+        if line.startswith("title: "):
+            title = line.removeprefix("title: ")
+        elif line in ("ingredient lines:", "steps:"):
+            section = line
+        elif line.startswith("equipment es-MX names:") or line.startswith("---"):
+            section = None
+        elif section and re.match(r"\d+\. ", line):
+            body = re.sub(r"  \[[^\]]*\]$", "", re.sub(r"^\d+\. ", "", line))
+            (ingredient_lines if section == "ingredient lines:" else steps).append("es: " + body)
+    return {"title": "es: " + title, "description": "", "ingredient_lines": ingredient_lines, "steps": steps}

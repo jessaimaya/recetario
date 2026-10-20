@@ -7,7 +7,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from recetario_ingest import db, epub, seed, sources, stages
+from recetario_ingest import db, epub, loader, seed, sources, stages
 from recetario_ingest.artifacts import ArtifactStore
 from recetario_ingest.config import Config
 from recetario_ingest.cost import cost_usd, estimate_tokens
@@ -17,7 +17,7 @@ from recetario_ingest.llm.factory import build_llm
 from recetario_ingest.llm.prompts import PromptRegistry
 from recetario_ingest.pipeline import Context, Stage, run_stages
 
-STAGE_NAMES = ("text", "segment", "extract", "lines", "resolve")
+STAGE_NAMES = ("text", "segment", "extract", "lines", "resolve", "localize")
 
 
 @dataclass
@@ -34,6 +34,7 @@ class BookReport:
     web_searches: int = 0
     cost_usd: float = 0.0
     seconds: float = 0.0
+    loaded: dict[str, int] = field(default_factory=dict)  # what load wrote (see loader.LoadReport)
     terms: dict[str, dict[str, int]] = field(default_factory=dict)  # kind -> {exact, auto, review} counts of unique terms
     extraction_tokens: int = 0  # what the extract stage would send as input: recipe text plus the prompt, per recipe
     failures: list[str] = field(default_factory=list)
@@ -103,7 +104,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
 
     pipeline: list[Stage] = [stages.TextStage(path), stages.SegmentStage()]
     if llm is not None:
-        pipeline += [stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage()]
+        pipeline += [stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage(), stages.LocalizeStage()]
     stage_names = [stage.name for stage in pipeline]
 
     file_hash = sources.file_sha256(path)
@@ -142,6 +143,8 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
         book.extraction_tokens = sum(estimate_tokens(s["text"]) + overhead for s in segments if s["kind"] == "recipe")
     if "resolve" in run.stages and not run.stages["resolve"].failed:
         book.terms = term_counts(store.read_all("resolve"))
+    if not run.failures and "localize" in run.stages:
+        book.loaded = asdict(load_book(conn, source, store))
     sources.set_status(conn, source, "failed" if run.failures else "done")
     book.seconds = time.monotonic() - started
     return book
@@ -152,6 +155,23 @@ def _save_report(artifacts_dir: Path, report: RunReport) -> None:
     runs.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     (runs / f"{stamp}.json").write_text(json.dumps(asdict(report), indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def load_book(conn, source: sources.Source, store: ArtifactStore) -> loader.LoadReport:
+    """Write the book's recipes into the database from its artifacts and the current vocabulary."""
+    localized = {item["recipe_key"]: item for item in store.read_all("localize") if item["status"] == "ok"}
+    return loader.load_recipes(conn, source.id, store.read_all("extract"), stages.split_parts(store), localized)
+
+
+def load_all(config: Config) -> list[tuple[str, loader.LoadReport]]:
+    """Load every finished book again, e.g. after a review pass resolved more terms. Calls no model."""
+    conn = db.connect(config.db_path)
+    try:
+        db.migrate(conn)
+        done = [sources.Source(row["id"], row["file_hash"], row["raw_title"], row["status"]) for row in conn.execute("SELECT * FROM sources WHERE status = 'done'")]
+        return [(source.raw_title, load_book(conn, source, ArtifactStore(config.artifacts_dir / source.slug))) for source in done]
+    finally:
+        conn.close()
 
 
 def term_counts(resolutions: list[dict]) -> dict[str, dict[str, int]]:
@@ -181,6 +201,11 @@ def format_report(report: RunReport, config: Config) -> str:
                 f"  units: {book.units_run} run, {book.units_cached} cached · "
                 f"tokens {book.tokens_in:,} in / {book.tokens_out:,} out · "
                 f"web searches {book.web_searches} · cost ${book.cost_usd:.4f} · {book.seconds:.1f}s"
+            )
+        if book.loaded:
+            lines.append(
+                f"  loaded: {book.loaded['recipes']} recipes · {book.loaded['lines']} ingredient lines "
+                f"({book.loaded['unresolved_lines']} unresolved) · {book.loaded['equipment']} equipment · {book.loaded['attributes']} attributes"
             )
         for kind, row in sorted(book.terms.items()):
             total = sum(row.values())

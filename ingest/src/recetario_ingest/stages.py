@@ -1,11 +1,14 @@
 """The stages of the ingest pipeline that exist so far: text, then segment."""
 
 import hashlib
+import json
+import re
 from pathlib import Path
 
 from dataclasses import asdict
 
-from recetario_ingest import epub, extraction, line_split, lines, resolver, segment, terms
+from recetario_ingest import epub, extraction, line_split, lines, localize, resolver, segment, terms
+from recetario_ingest.vocabulary import Vocabulary
 from recetario_ingest.pipeline import Context, Stage, StageError, StageOutput, Unit
 
 
@@ -143,6 +146,11 @@ def split_names(store) -> dict[str, list[str]]:
     return {item["raw"]: [part["name"] for part in item["parts"]] for item in store.read_all("lines")}
 
 
+def split_parts(store) -> dict[str, list[dict]]:
+    """raw ingredient line -> its parts (name, relation), from the `lines` artifacts."""
+    return {item["raw"]: item["parts"] for item in store.read_all("lines")}
+
+
 class ResolveStage(Stage):
     """Terms of the book (ingredients, equipment names and attribute keys): one unit per unique term.
 
@@ -168,3 +176,63 @@ class ResolveStage(Stage):
         version = ctx.prompts.get(self.prompt_id).version
         resolution = resolver.Resolver(ctx.conn, ctx.llm, version, ctx.source.id).resolve(kind, term, examples)
         return StageOutput(resolution.as_json(), resolution.usage)
+
+
+class LocalizeStage(Stage):
+    """Recipe level: translate to es-MX with the resolved names as hints.
+
+    The input includes those names, so a recipe is translated again once a review pass settles more of its terms
+    (re-run with `--force-stage localize` after reviewing).
+    """
+
+    name = "localize"
+    version = "1"
+    prompt_id = localize.PROMPT_ID
+
+    def units(self, ctx: Context) -> list[Unit]:
+        if ctx.llm is None or ctx.conn is None:
+            raise StageError("no model is configured")
+        vocabulary = {kind: Vocabulary(ctx.conn, kind) for kind in ("ingredient", "equipment")}
+        splits = split_parts(ctx.store)
+        units = []
+        for item in ctx.store.read_all("extract"):
+            if not item["extracted"]:
+                continue
+            recipe = recipe_for_translation(item["extracted"], vocabulary, splits)
+            units.append(Unit(key=item["recipe_key"], input_hash=_hash(json.dumps(recipe, sort_keys=True, ensure_ascii=False)), payload=recipe))
+        return units
+
+    def run(self, ctx: Context, unit: Unit) -> StageOutput:
+        version = ctx.prompts.get(self.prompt_id).version
+        result = localize.localize_recipe(ctx.llm, version, unit.payload)
+        return StageOutput(
+            {
+                "recipe_key": unit.key, "status": result.status, "attempts": result.attempts, "prompt_version": version,
+                **(result.translated or {}), "issues": [asdict(issue) for issue in result.issues],
+            },
+            result.usage,
+        )
+
+
+def recipe_for_translation(data: dict, vocabulary: dict[str, Vocabulary], splits: dict[str, list[dict]]) -> dict:
+    """The extraction plus what the vocabulary knows: es-MX names per ingredient line, metric amounts, equipment names."""
+    ingredient_lines = []
+    for text in data["ingredient_lines"]:
+        parsed = lines.parse_line(text)
+        parts = splits.get(text, []) if parsed.needs_model else [{"name": parsed.name}]
+        names = []
+        for part in parts:
+            entry = vocabulary["ingredient"].exact(terms.normalize_term("ingredient", part["name"])) if part["name"] else None
+            if entry and entry.label_es_mx and entry.label_es_mx not in names:
+                names.append(entry.label_es_mx)
+        amount = localize.metric_amount(parsed.qty, parsed.unit)
+        container = re.fullmatch(r"(\d+(?:\.\d+)?)\s*(oz|lb)s?", parsed.container or "")
+        if container:
+            amount = ((amount + "; ") if amount else "") + "container " + localize.metric_amount(float(container[1]), container[2])
+        ingredient_lines.append({"text": text, "names": names, "amount": amount})
+    equipment = {}
+    for mention in data["equipment_mentions"]:
+        entry = vocabulary["equipment"].exact(terms.normalize_term("equipment", mention["text"]))
+        if entry and entry.label_es_mx:
+            equipment[entry.name_en] = entry.label_es_mx
+    return {"title": data["title"], "description": data.get("description") or "", "steps": data["steps"], "ingredient_lines": ingredient_lines, "equipment": equipment}
