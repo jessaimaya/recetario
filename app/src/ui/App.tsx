@@ -5,6 +5,7 @@ import { Data, ImportBox } from "./Data";
 import { Equipment } from "./Equipment";
 import { Ingredients } from "./Ingredients";
 import { Recipe } from "./Recipe";
+import { Recipes } from "./Recipes";
 import { railText, useRail } from "./rail";
 import { Search } from "./Search";
 
@@ -16,6 +17,7 @@ addEventListener("hashchange", () => {
 
 const TABS = [
   { href: "#/", text: "Cocinar" },
+  { href: "#/recetas", text: "Recetas" },
   { href: "#/despensa", text: "Despensa" },
   { href: "#/cocina", text: "Cocina" },
   { href: "#/datos", text: "Datos" },
@@ -43,13 +45,14 @@ export function App() {
 }
 
 function isActive(current: string, href: string): boolean {
-  if (href === "#/") return current === "#/" || current.startsWith("#/receta");
+  if (href === "#/") return current === "#/" || /^#\/receta\/\d+/.test(current);
   return current === href;
 }
 
 function Screen({ path }: { path: string }) {
   const recipe = /^#\/receta\/(\d+)$/.exec(path);
   if (recipe) return <Recipe id={Number(recipe[1])} />;
+  if (path === "#/recetas") return <Recipes />;
   if (path === "#/despensa") return <Ingredients />;
   if (path === "#/cocina") return <Equipment />;
   if (path === "#/datos") return <Data />;

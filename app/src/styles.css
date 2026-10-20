@@ -99,6 +99,7 @@ input[type="search"]::placeholder { color: var(--muted); }
 
 /* A group of choices set as text: the chosen one is underlined */
 .segmented { display: flex; flex-wrap: wrap; gap: 4px 22px; }
+.segmented button { text-align: left; }
 .segmented button {
   min-height: 34px; padding: 4px 0; border: 0; border-bottom: 1.5px solid transparent;
   font-size: 0.8rem; letter-spacing: 0.1em; color: var(--muted);
@@ -237,11 +238,11 @@ code { font-size: 0.85em; background: var(--hair); padding: 1px 5px; }
 .button small { color: inherit; opacity: 0.9; letter-spacing: 0.06em; font-size: 0.8rem; }
 
 .tabs {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: grid; grid-template-columns: repeat(4, 1fr);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: grid; grid-template-columns: repeat(5, 1fr);
   height: calc(var(--tabs) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
   background: var(--paper); border-top: 1.5px solid var(--ink);
 }
-.tabs a { display: grid; place-items: center; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; text-decoration: none; color: var(--muted); }
+.tabs a { display: grid; place-items: center; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-decoration: none; color: var(--muted); }
 .tabs a[aria-current="page"] { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 7px; }
 .tabs a:hover { color: var(--ink); }
 
@@ -249,3 +250,7 @@ code { font-size: 0.85em; background: var(--hair); padding: 1px 5px; }
   button.chip.on::after, .mark::after { animation: draw 0.35s ease-out; }
   @keyframes draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 }
+
+/* Recipe index: a letter heading over each group */
+.letter { display: block; font: 500 2rem/1 var(--serif); letter-spacing: 0; text-transform: none; margin: 34px 0 10px; padding-bottom: 6px; border-bottom: 1.5px solid var(--ink); }
+.letter-group .recipes { border-top: 0; }

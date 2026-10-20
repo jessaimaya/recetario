@@ -6,6 +6,14 @@ import { splitLine } from "./lines";
 import { Empty, Segmented, count, minutes, shortTitle } from "./parts";
 import { useRail } from "./rail";
 
+/** Back to wherever the person came from (the results or the full list); the results page if the recipe was opened directly. */
+function goBack(event: MouseEvent): void {
+  if (history.length > 1) {
+    event.preventDefault();
+    history.back();
+  }
+}
+
 export function Recipe({ id }: { id: number }) {
   const original = useSignal(false);
   const db = readDatabase();
@@ -33,7 +41,7 @@ export function Recipe({ id }: { id: number }) {
 
   return (
     <article class="page recipe">
-      <a class="back" href="#/">← Volver</a>
+      <a class="back" href="#/" onClick={goBack}>← Volver</a>
       <p class="eyebrow">
         {[minutes(recipe.totalMin) && `Total ${minutes(recipe.totalMin)}`, minutes(recipe.prepMin) && `Preparación ${minutes(recipe.prepMin)}`]
           .filter(Boolean)

@@ -20,7 +20,8 @@ export function count(n: number, one: string, many: string): string {
 
 /** "Hello! 285 5-Ingredient Side Dish Recipes: Best 5-Ingredient … [Book 1]" → "Hello! 285 5-Ingredient Side Dish Recipes". */
 export function shortTitle(title: string): string {
-  return title.split(/[:[]/)[0]?.trim() || title;
+  const short = title.split(/[:[]/)[0]?.trim().replace(/^hello!\s*/i, "");
+  return short || title;
 }
 
 export function needText(need: Need): string {

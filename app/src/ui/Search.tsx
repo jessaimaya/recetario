@@ -42,6 +42,7 @@ export function Search() {
       <Questions />
       {none ? <NoResults /> : <Groups found={found} />}
       <HiddenNote />
+      <p class="note"><a href="#/recetas">Ver todas las recetas →</a></p>
     </div>
   );
 }
