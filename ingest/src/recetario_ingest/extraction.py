@@ -60,9 +60,32 @@ Add nothing that is not in the text.""",
 )
 
 
+EXTRACT_V2 = Prompt(
+    id=PROMPT_ID,
+    version="v2",
+    system="""You extract one recipe from the text of a cookbook. Copy what the book printed; never improve it.
+
+- title: the full title as printed, without its number. Keep any parenthetical and the punctuation, but write HTML entities such as &quot; as the characters they stand for.
+- description: the blurb or introduction, without quotation marks. Empty string if there is none.
+- meta: facts printed before the ingredients, such as servings and times. key_text and value_text are copied as written ("Prep", "5m").
+- ingredient_lines: one entry per ingredient line, exactly as written with only the bullet or number marker removed. Do not translate, reword, split or merge lines, and keep notes like "to taste" and "(optional)".
+- steps: one entry per step, exactly as written with only the bullet or number marker removed.
+- extras: other labelled facts, such as each nutrition value, with key_text and value_text copied as written.
+- equipment_mentions: the equipment each step names, one entry per piece of equipment per step.
+  Equipment is an appliance (oven, microwave, air fryer, slow cooker, pressure cooker, blender, food processor), cookware (pot, pan, skillet, wok), bakeware (baking sheet, baking dish, loaf pan), a bowl, a grill or campfire, or a tool the cook must own (box grater, potato masher, steamer basket).
+  Add an entry for every step that names it, even when an earlier step already did, and include the oven whenever a step says oven. Alternatives such as "grill or the campfire" are separate entries with the same step_index.
+  text is the name as written in the step. step_index is the zero-based position in steps, so the first step is 0. listed is true only when the equipment appears in an equipment list rather than in a step.
+  Leave out incidental utensils (fork, spoon, knife, spatula, tongs, whisk, pot holder), serving dishes, plates and platters, cutting or chopping boards, bags, foil and wrap, trivets, and parts of an appliance (an air fryer's basket, an oven rack, a broiler). Do not infer equipment the text doesn't name.
+
+Add nothing that is not in the text.""",
+    template="{text}",
+)
+
+
 def default_prompts() -> PromptRegistry:
     registry = PromptRegistry()
     registry.register(EXTRACT_V1)
+    registry.register(EXTRACT_V2)
     return registry
 
 

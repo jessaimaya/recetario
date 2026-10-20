@@ -3,7 +3,7 @@ import json
 import pytest
 from fakes import perfect_extraction
 
-from recetario_ingest.extraction import EXTRACT_V1, EXTRACTED_SCHEMA, default_prompts, extract_recipe
+from recetario_ingest.extraction import EXTRACT_V1, EXTRACT_V2, EXTRACTED_SCHEMA, default_prompts, extract_recipe
 from recetario_ingest.llm.adapter import FakeLlm, LlmResult, Usage
 
 TEXT = (
@@ -83,7 +83,9 @@ def test_the_fake_model_works_through_the_registered_prompt():
 
     result = extract_recipe(fake, TEXT, prompts.get("extract").version)
 
-    assert result.status == "ok" and fake.calls[0][:2] == ("extract", "v1")
+    assert result.status == "ok" and fake.calls[0][:2] == ("extract", "v2")  # the latest registered version
+    extract_recipe(fake, TEXT, "v1")
+    assert fake.calls[1][:2] == ("extract", "v1")
 
 
 def test_the_schema_requires_every_field_and_forbids_extras():
@@ -91,3 +93,9 @@ def test_the_schema_requires_every_field_and_forbids_extras():
     assert EXTRACTED_SCHEMA["additionalProperties"] is False
     json.dumps(EXTRACTED_SCHEMA)
     assert "{text}" in EXTRACT_V1.template
+
+
+def test_a_prompt_version_never_changes_once_released():
+    # v1 was scored against the golden set; editing its text would make old rows in EVALS.md meaningless
+    assert EXTRACT_V1.fingerprint == "4214ea78e4ca"
+    assert "{text}" in EXTRACT_V2.template and EXTRACT_V1.system != EXTRACT_V2.system

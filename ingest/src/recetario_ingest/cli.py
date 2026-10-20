@@ -12,7 +12,7 @@ import anthropic
 from recetario_ingest import config as config_module
 from recetario_ingest import db, evaluate, ingest, seed
 from recetario_ingest.cost import cost_usd, estimate_tokens
-from recetario_ingest.extraction import EXTRACT_V1, default_prompts
+from recetario_ingest.extraction import default_prompts
 from recetario_ingest.llm.adapter import BudgetExceeded
 from recetario_ingest.llm.factory import build_llm
 
@@ -67,7 +67,7 @@ def _eval_extract(config_path: Path | None, golden: list[Path] | None, version: 
             return 2
         unreviewed = sum(not case.reviewed for case in cases)
         if dry_run:
-            tokens = sum(estimate_tokens(case.text) + estimate_tokens(EXTRACT_V1.system) for case in cases)
+            tokens = sum(estimate_tokens(case.text) + estimate_tokens(prompts.get("extract", version).system) for case in cases)
             print(f"{len(cases)} golden recipes ({unreviewed} unreviewed), prompt {version}: ~{tokens:,} input tokens")
             if config.model in config.pricing:
                 print(f"estimated input cost: ${cost_usd(tokens, 0, config.pricing[config.model]):.4f} (output not included)")

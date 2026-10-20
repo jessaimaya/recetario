@@ -11,7 +11,7 @@ from recetario_ingest import db, epub, sources, stages
 from recetario_ingest.artifacts import ArtifactStore
 from recetario_ingest.config import Config
 from recetario_ingest.cost import cost_usd, estimate_tokens
-from recetario_ingest.extraction import EXTRACT_V1, default_prompts
+from recetario_ingest.extraction import default_prompts
 from recetario_ingest.llm.adapter import LlmAdapter
 from recetario_ingest.llm.factory import build_llm
 from recetario_ingest.llm.prompts import PromptRegistry
@@ -136,7 +136,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
         segments = store.read_all("segment")
         for segment in segments:
             book.kinds[segment["kind"]] = book.kinds.get(segment["kind"], 0) + 1
-        overhead = estimate_tokens(EXTRACT_V1.system)
+        overhead = estimate_tokens(prompts.get("extract").system)
         book.extraction_tokens = sum(estimate_tokens(s["text"]) + overhead for s in segments if s["kind"] == "recipe")
     sources.set_status(conn, source, "failed" if run.failures else "done")
     book.seconds = time.monotonic() - started
