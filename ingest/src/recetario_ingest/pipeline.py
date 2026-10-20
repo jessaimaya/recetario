@@ -104,6 +104,8 @@ def run_stages(conn: sqlite3.Connection, ctx: Context, stages: list[Stage]) -> B
         except StageError as error:
             run.failures.append(f"{stage.name}: {error}")
             break
+        if not units:  # nothing to do is still done, and the "already done" check looks for a row
+            _record_empty(conn, ctx, stage)
         try:
             for unit in units:
                 _run_unit(conn, ctx, stage, unit, forcing, totals, run)
@@ -113,6 +115,18 @@ def run_stages(conn: sqlite3.Connection, ctx: Context, stages: list[Stage]) -> B
         if totals.failed:
             break
     return run
+
+
+def _record_empty(conn, ctx, stage) -> None:
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO stage_runs (source_id, recipe_key, stage, input_hash, prompt_version, model,
+                                    tokens_in, tokens_out, web_searches, cost_usd, ms, status)
+            VALUES (?, NULL, ?, '', '', '', 0, 0, 0, 0, 0, 'ok')
+            """,
+            (ctx.source.id, stage.name),
+        )
 
 
 def _run_unit(conn, ctx, stage, unit, forcing, totals, run) -> None:

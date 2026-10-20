@@ -4,6 +4,7 @@ import zipfile
 
 import pytest
 from epub_fixtures import make_epub, sample_book
+from fakes import new_answer
 
 from recetario_ingest import db, ingest, stages
 from recetario_ingest.cli import main
@@ -293,7 +294,7 @@ def test_a_recipe_the_model_gets_wrong_is_kept_for_review_not_dropped(config):
 
     sample_book(config.books_dir / "b.epub", recipes=2)
     prompts = default_prompts()
-    llm = FakeLlm(prompts, {"extract": {"title": "x", "description": "", "meta": [], "ingredient_lines": ["9 invented"], "steps": ["s"], "equipment_mentions": [], "extras": []}})
+    llm = FakeLlm(prompts, {"extract": {"title": "x", "description": "", "meta": [], "ingredient_lines": ["9 invented"], "steps": ["s"], "equipment_mentions": [], "extras": []}, "resolve": new_answer("invented", "inventado")})
 
     (book,) = ingest.ingest(config, llm=llm, prompts=prompts).books
 

@@ -17,7 +17,7 @@ from recetario_ingest.llm.factory import build_llm
 from recetario_ingest.llm.prompts import PromptRegistry
 from recetario_ingest.pipeline import Context, Stage, run_stages
 
-STAGE_NAMES = ("text", "segment", "extract", "resolve")
+STAGE_NAMES = ("text", "segment", "extract", "lines", "resolve")
 
 
 @dataclass
@@ -102,7 +102,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
 
     pipeline: list[Stage] = [stages.TextStage(path), stages.SegmentStage()]
     if llm is not None:
-        pipeline += [stages.ExtractStage(), stages.ResolveStage()]
+        pipeline += [stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage()]
     stage_names = [stage.name for stage in pipeline]
 
     file_hash = sources.file_sha256(path)

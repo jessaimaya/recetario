@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dataclasses import asdict
 
-from recetario_ingest import epub, extraction, resolver, segment, terms
+from recetario_ingest import epub, extraction, line_split, lines, resolver, segment, terms
 from recetario_ingest.pipeline import Context, Stage, StageError, StageOutput, Unit
 
 
@@ -113,8 +113,38 @@ class ExtractStage(Stage):
         )
 
 
+class LinesStage(Stage):
+    """Ingredient lines the rules can't read ("salt and pepper"): one unit per unique line, the model names its parts."""
+
+    name = "lines"
+    version = "1"
+    prompt_id = line_split.PROMPT_ID
+
+    def units(self, ctx: Context) -> list[Unit]:
+        if ctx.llm is None:
+            raise StageError("no model is configured")
+        unknown = {}
+        for item in ctx.store.read_all("extract"):
+            for raw in (item["extracted"] or {}).get("ingredient_lines", []):
+                parsed = lines.parse_line(raw)
+                if parsed.needs_model:
+                    unknown[raw] = parsed
+        return [Unit(key=_hash(raw)[:16], input_hash=_hash(raw), payload=parsed) for raw, parsed in sorted(unknown.items())]
+
+    def run(self, ctx: Context, unit: Unit) -> StageOutput:
+        parsed = unit.payload
+        version = ctx.prompts.get(self.prompt_id).version
+        parts, usage = line_split.split_line(ctx.llm, version, parsed.raw, parsed.name)
+        return StageOutput({"raw": parsed.raw, "reason": parsed.needs_model, "parts": parts}, usage)
+
+
+def split_names(store) -> dict[str, list[str]]:
+    """raw ingredient line -> the names the model found in it, from the `lines` artifacts."""
+    return {item["raw"]: [part["name"] for part in item["parts"]] for item in store.read_all("lines")}
+
+
 class ResolveStage(Stage):
-    """Terms of the book (equipment names and attribute keys so far): one unit per unique term.
+    """Terms of the book (ingredients, equipment names and attribute keys): one unit per unique term.
 
     The vocabulary tables are the source of truth, so this stage writes auto-accepted aliases and open proposals
     to the database itself; its artifacts only record what happened, which also spares repeated model calls.
@@ -127,7 +157,7 @@ class ResolveStage(Stage):
     def units(self, ctx: Context) -> list[Unit]:
         if ctx.llm is None or ctx.conn is None:
             raise StageError("no model is configured")
-        found = terms.collect_terms(ctx.store.read_all("extract"))
+        found = terms.collect_terms(ctx.store.read_all("extract"), split_names(ctx.store))
         return [
             Unit(key=f"{kind}-{term}", input_hash=_hash(kind, term), payload=(kind, term, examples))
             for (kind, term), examples in found.items()

@@ -4,6 +4,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
+from recetario_ingest import lines
 from recetario_ingest.text import normalize
 
 _TRADEMARKS = re.compile(r"[®™©]")
@@ -52,11 +53,13 @@ class TermExample:
     text: str  # the step an equipment name appeared in, or "key: value" for an attribute key
 
 
-def collect_terms(extractions: list[dict]) -> dict[tuple[str, str], list[TermExample]]:
+def collect_terms(extractions: list[dict], splits: dict[str, list[str]] | None = None) -> dict[tuple[str, str], list[TermExample]]:
     """Unique (kind, normalized term) -> up to three examples, from extract artifacts, in a stable order.
 
-    Covers equipment and attribute keys; ingredients need the line parser and come separately.
+    `splits` maps an ingredient line the rules couldn't read to the names the model found in it; without an
+    entry such a line adds no ingredient term.
     """
+    splits = splits or {}
     found: dict[tuple[str, str], list[TermExample]] = defaultdict(list)
 
     def add(kind: str, raw: str, example: TermExample) -> None:
@@ -69,6 +72,11 @@ def collect_terms(extractions: list[dict]) -> dict[tuple[str, str], list[TermExa
         if not data:
             continue
         title = data["title"]
+        for raw in data["ingredient_lines"]:
+            parsed = lines.parse_line(raw)
+            names = splits.get(raw, []) if parsed.needs_model else [parsed.name]
+            for name in names:
+                add("ingredient", name, TermExample(title, raw))
         for mention in data["equipment_mentions"]:
             steps = data["steps"]
             index = mention["step_index"]
