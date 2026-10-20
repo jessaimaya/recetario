@@ -192,6 +192,7 @@ def format_report(report: RunReport, config: Config) -> str:
     lines = ["dry run: nothing is written and no model is called" if report.dry_run else "ingest run"]
     if not report.books:
         lines.append(f"no books found in {config.books_dir}")
+    listed = " (list price, covered by your plan)" if config.provider == "claude-code" else ""
     for book in report.books:
         outcome = "would ingest" if report.dry_run and book.outcome == "ingested" else book.outcome
         lines.append(f"\n{book.file}: {outcome}" + (f" ({book.detail})" if book.detail else ""))
@@ -205,7 +206,7 @@ def format_report(report: RunReport, config: Config) -> str:
             lines.append(
                 f"  units: {book.units_run} run, {book.units_cached} cached · "
                 f"tokens {book.tokens_in:,} in / {book.tokens_out:,} out · "
-                f"web searches {book.web_searches} · cost ${book.cost_usd:.4f} · {book.seconds:.1f}s"
+                f"web searches {book.web_searches} · cost ${book.cost_usd:.4f}{listed} · {book.seconds:.1f}s"
             )
         if book.loaded:
             lines.append(
@@ -223,7 +224,10 @@ def format_report(report: RunReport, config: Config) -> str:
         if report.estimated_cost_usd is not None:
             lines.append(f"\nestimated input cost for extraction: ${report.estimated_cost_usd:.2f} (output not included)")
         else:
-            lines.append("\nno price for the configured model, so no cost estimate; add [pricing.\"<model>\"] to recetario.toml")
+            lines.append(
+                "\nno dollar estimate: this provider runs on your plan" if config.provider == "claude-code"
+                else "\nno price for the configured model, so no cost estimate; add [pricing.\"<model>\"] to recetario.toml"
+            )
     if report.books and not config.model:
         lines.append("\nextraction skipped: no model configured (set model under [llm] in recetario.toml)")
     return "\n".join(lines)

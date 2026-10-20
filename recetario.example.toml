@@ -6,6 +6,9 @@ evals_dir = "local/evals"  # golden sets and eval results (private)
 locale = "es-MX"
 
 [llm]
+# "anthropic": the API (needs ANTHROPIC_API_KEY and a [pricing] entry below; fast, with a hard dollar cap).
+# "claude-code": the Claude Code CLI signed in with your plan, no API key (slower, counts against your plan's usage;
+#   set model to an alias such as "haiku"; max_cost_usd then caps the CLI's list-price estimate, and no [pricing] is needed).
 provider = "anthropic"
 # model = ""          # without a model, ingest stops after segmenting and the extract stage is skipped
 # effort = "low"      # output_config.effort: low | medium | high | xhigh | max

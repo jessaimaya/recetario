@@ -42,6 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     ev_extract.add_argument("--config", type=Path)
     ev_extract.add_argument("--golden", type=Path, action="append", help="golden folder, repeatable (default: local/evals/extraction and evals/extraction)")
     ev_extract.add_argument("--model", help="model to use instead of the one in the config")
+    ev_extract.add_argument("--provider", choices=("anthropic", "claude-code"), help="provider to use instead of the one in the config")
     ev_extract.add_argument("--prompt", help="prompt version (default: the latest)")
     ev_extract.add_argument("--dry-run", action="store_true", help="count recipes and estimate input cost; call nothing")
 
@@ -49,6 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     ev_resolve.add_argument("--config", type=Path)
     ev_resolve.add_argument("--cases", type=Path, help="folder of case files (default: evals/resolution)")
     ev_resolve.add_argument("--model", help="model to use instead of the one in the config")
+    ev_resolve.add_argument("--provider", choices=("anthropic", "claude-code"), help="provider to use instead of the one in the config")
     ev_resolve.add_argument("--prompt", help="prompt version (default: the latest)")
 
     review_parser = commands.add_parser("review", help="decide open vocabulary proposals, or spot-check auto-accepted aliases")
@@ -68,9 +70,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "review":
         return _review(args.config, args.kind, args.auto, args.duplicates)
     if args.command == "eval" and args.eval_command == "resolve":
-        return _eval_resolve(args.config, args.cases, args.prompt, args.model)
+        return _eval_resolve(args.config, args.cases, args.prompt, args.model, args.provider)
     if args.command == "eval":
-        return _eval_extract(args.config, args.golden, args.prompt, args.dry_run, args.model)
+        return _eval_extract(args.config, args.golden, args.prompt, args.dry_run, args.model, args.provider)
     return 1
 
 
@@ -95,11 +97,13 @@ def _review(config_path: Path | None, kind: str | None, auto: bool, duplicate_pa
     return 0
 
 
-def _eval_extract(config_path: Path | None, golden: list[Path] | None, version: str | None, dry_run: bool, model: str | None) -> int:
+def _eval_extract(config_path: Path | None, golden: list[Path] | None, version: str | None, dry_run: bool, model: str | None, provider: str | None = None) -> int:
     try:
         config = config_module.load_config(config_path)
         if model:
             config = replace(config, model=model)
+        if provider:
+            config = replace(config, provider=provider)
         prompts = default_prompts()
         version = version or prompts.get("extract").version
         folders = golden or [config.evals_dir / "extraction", db.REPO_ROOT / "evals" / "extraction"]
@@ -133,11 +137,13 @@ def _eval_extract(config_path: Path | None, golden: list[Path] | None, version: 
     return 0
 
 
-def _eval_resolve(config_path: Path | None, cases_dir: Path | None, version: str | None, model: str | None) -> int:
+def _eval_resolve(config_path: Path | None, cases_dir: Path | None, version: str | None, model: str | None, provider: str | None = None) -> int:
     try:
         config = config_module.load_config(config_path)
         if model:
             config = replace(config, model=model)
+        if provider:
+            config = replace(config, provider=provider)
         prompts = default_prompts()
         version = version or prompts.get("resolve").version
         folder = cases_dir or db.REPO_ROOT / "evals" / "resolution"
