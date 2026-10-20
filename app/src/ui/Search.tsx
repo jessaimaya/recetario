@@ -2,8 +2,8 @@ import { useSignal } from "@preact/signals";
 
 import type { RankedRecipe } from "../core/types";
 import {
-  blocked, cards, changeAvailability, classifyQuestions, dismiss, entryById, haveQuestions, ingredients, maxMissing,
-  maxTotalMin, pantry, results, setMaxMissing, setMaxTotalMin, togglePantry,
+  answerAvailability, answerHave, answered, blocked, cards, dismiss, entryById, ingredients, maxMissing,
+  maxTotalMin, openQuestions, pantry, results, setMaxMissing, setMaxTotalMin, slots, togglePantry,
 } from "../store";
 import { Card, Empty, Segmented, count, fold, minutes, needText } from "./parts";
 import { useRail } from "./rail";
@@ -100,40 +100,48 @@ function Pantry() {
 }
 
 function Questions() {
-  const have = haveQuestions.value.slice(0, 2);
-  const classify = classifyQuestions.value.slice(0, 2);
-  if (have.length === 0 && classify.length === 0) return null;
+  const open = new Map(openQuestions.value.map((question) => [question.key, question]));
+  if (slots.value.length === 0) return null;
   return (
     <div class="questions">
-      {have.map((question) => {
-        const entry = entryById.value.get(question.entryId);
-        if (!entry) return null;
-        return (
-          <Card key={`have:${question.entryId}`} tone="ask">
+      {slots.value.map((key) => {
+        const done = answered.value.get(key);
+        if (done) {
+          return (
+            <Card key={key} tone="ask">
+              <p aria-live="polite">
+                <strong>✓ {done.text}</strong>
+              </p>
+              <div class="actions">
+                <button type="button" class="quiet" onClick={done.undo}>Deshacer</button>
+              </div>
+            </Card>
+          );
+        }
+        const question = open.get(key);
+        const entry = question && entryById.value.get(question.entryId);
+        if (!question || !entry) return null;
+        return question.kind === "have" ? (
+          <Card key={key} tone="ask">
             <p>
               <strong>¿Tienes {entry.label}?</strong>
-              <small> Con eso completas {count(question.completes, "receta", "recetas")}.</small>
+              <small> Con eso completas {count(question.count, "receta", "recetas")}.</small>
             </p>
             <div class="actions">
-              <button type="button" class="primary" onClick={() => togglePantry(entry.id, true)}>Sí, tengo</button>
-              <button type="button" onClick={() => dismiss(`have:${entry.id}`)}>No</button>
+              <button type="button" class="primary" onClick={() => answerHave(entry.id)}>Sí, tengo</button>
+              <button type="button" onClick={() => dismiss(key)}>No</button>
             </div>
           </Card>
-        );
-      })}
-      {classify.map((question) => {
-        const entry = entryById.value.get(question.entryId);
-        if (!entry) return null;
-        return (
-          <Card key={`classify:${question.entryId}`} tone="ask">
+        ) : (
+          <Card key={key} tone="ask">
             <p>
               <strong>¿{entry.label} se consigue por aquí?</strong>
-              <small> Está en {count(question.appearsIn, "receta", "recetas")} que hoy no puedo evaluar.</small>
+              <small> Está en {count(question.count, "receta", "recetas")} que hoy no puedo evaluar.</small>
             </p>
             <div class="actions">
-              <button type="button" class="primary" onClick={() => changeAvailability(entry.id, "obtainable")}>Sí se consigue</button>
-              <button type="button" onClick={() => changeAvailability(entry.id, "unobtainable")}>No se consigue</button>
-              <button type="button" class="quiet" onClick={() => dismiss(`classify:${entry.id}`)}>Luego</button>
+              <button type="button" class="primary" onClick={() => answerAvailability(entry.id, "obtainable")}>Sí se consigue</button>
+              <button type="button" onClick={() => answerAvailability(entry.id, "unobtainable")}>No se consigue</button>
+              <button type="button" class="quiet" onClick={() => dismiss(key)}>Luego</button>
             </div>
           </Card>
         );

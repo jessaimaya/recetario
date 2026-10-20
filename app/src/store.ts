@@ -1,4 +1,4 @@
-import { batch, computed, signal } from "@preact/signals";
+import { batch, computed, effect, signal } from "@preact/signals";
 
 import { blockedCounts, classificationQuestions, questionsToAsk, search } from "./core/search";
 import type { Availability, EntryId, RecipeId, SearchData } from "./core/types";
@@ -203,5 +203,73 @@ export async function resetData(): Promise<void> {
     summary.value = null;
     pantry.value = new Set();
     status.value = "empty";
+  });
+}
+
+
+/** Questions on screen, kept in place: answering one shows a confirmation there instead of reshuffling the others. */
+const SLOTS = 2;
+const CONFIRMATION_MS = 3000;
+
+export interface AnsweredQuestion {
+  text: string;
+  undo: () => void;
+}
+
+export const answered = signal<ReadonlyMap<string, AnsweredQuestion>>(new Map());
+export const slots = signal<string[]>([]);
+
+export const openQuestions = computed(() => [
+  ...haveQuestions.value.map((question) => ({ key: `have:${question.entryId}`, kind: "have" as const, entryId: question.entryId, count: question.completes })),
+  ...classifyQuestions.value.map((question) => ({ key: `classify:${question.entryId}`, kind: "classify" as const, entryId: question.entryId, count: question.appearsIn })),
+]);
+
+effect(() => {
+  const open = new Map(openQuestions.value.map((question) => [question.key, question]));
+  const previous = slots.peek();
+  // A slot keeps its question while it is still open (or just answered); a freed slot takes the next question, so nothing else moves.
+  const kept = Array.from({ length: SLOTS }, (_, index) => {
+    const key = previous[index];
+    return key !== undefined && (open.has(key) || answered.value.has(key)) ? key : null;
+  });
+  const pool = [...open.keys()].filter((key) => !kept.includes(key));
+  const next = kept.map((key) => key ?? pool.shift() ?? null).filter((key): key is string => key !== null);
+  if (next.join() !== previous.join()) slots.value = next;
+});
+
+function confirm(key: string, text: string, undo: () => void): void {
+  const timer = setTimeout(() => clearAnswer(key), CONFIRMATION_MS);
+  answered.value = new Map(answered.value).set(key, {
+    text,
+    undo: () => {
+      clearTimeout(timer);
+      undo();
+      clearAnswer(key);
+    },
+  });
+}
+
+function clearAnswer(key: string): void {
+  const next = new Map(answered.value);
+  next.delete(key);
+  answered.value = next;
+}
+
+export function answerAvailability(entryId: EntryId, availability: "obtainable" | "unobtainable"): void {
+  const entry = entryById.value.get(entryId);
+  if (!entry) return;
+  // one batch: the slot must see the confirmation and the change together, or it would drop the answered question
+  batch(() => {
+    changeAvailability(entryId, availability);
+    confirm(`classify:${entryId}`, `${entry.label}: ${availability === "obtainable" ? "sí se consigue" : "no se consigue"}`, () => changeAvailability(entryId, "unknown"));
+  });
+}
+
+export function answerHave(entryId: EntryId): void {
+  const entry = entryById.value.get(entryId);
+  if (!entry) return;
+  batch(() => {
+    togglePantry(entryId, true);
+    confirm(`have:${entryId}`, `Anotado: tienes ${entry.label}`, () => togglePantry(entryId, false));
   });
 }
