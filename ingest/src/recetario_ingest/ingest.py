@@ -96,6 +96,11 @@ def ingest(
             for path in scan(config.books_dir):
                 if approve is not None and not dry_run:
                     preview = _preview(conn, config, path, prompts, force_stage)
+                    if preview is not None and preview.outcome != "failed" and not preview.kinds.get("recipe", 0):
+                        report.books.append(BookReport(path.name, "skipped", "no recipes found by segmentation; nothing to send to the model"))
+                        if show is not None:
+                            show(report.books[-1])
+                        continue
                     if preview is not None:
                         decision = approve(preview)
                         if decision == "quit":

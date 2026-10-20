@@ -364,3 +364,14 @@ def test_cap_applies_per_book_in_approval_mode(config):
 
     assert all(b.cost_usd >= 1.0 for b in report.books)  # the second book was not refused for the first one's spending
     assert [b.outcome for b in report.books] == ["failed", "failed"]
+
+
+def test_approval_mode_does_not_ask_about_a_book_with_no_recipes(config):
+    make_epub(config.books_dir / "prose.epub", {"a.html": '<span id="a"></span><p>Just an essay.</p>'}, [("Essay", "a.html#a")])
+    prompts, llm = sample_llm()
+    asked = []
+
+    report = ingest.ingest(config, llm=llm, prompts=prompts, approve=lambda p: asked.append(p.file) or "yes")
+
+    assert asked == [] and [(b.outcome, "no recipes" in b.detail) for b in report.books] == [("skipped", True)]
+    assert len(llm._inner.calls) == 0
