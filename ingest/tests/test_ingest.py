@@ -320,3 +320,47 @@ def test_dry_run_never_calls_the_model_even_when_one_is_given(config):
     report = ingest.ingest(config, dry_run=True, llm=llm, prompts=prompts)
 
     assert llm._inner.calls == [] and report.books[0].extraction_tokens > 0
+
+
+def test_approval_mode_sizes_up_each_book_for_free_and_only_runs_the_approved_ones(config):
+    sample_book(config.books_dir / "a.epub", recipes=2)
+    sample_book(config.books_dir / "b.epub", recipes=3)
+    prompts, llm = sample_llm(cost_per_call=0.01)
+    asked, shown = [], []
+
+    def approve(preview):
+        asked.append((preview.file, preview.detail, len(llm._inner.calls)))
+        return "yes" if preview.file == "b.epub" else "skip"
+
+    report = ingest.ingest(config, llm=llm, prompts=prompts, approve=approve, show=shown.append)
+
+    assert [(file, calls) for file, _, calls in asked] == [("a.epub", 0), ("b.epub", 0)]  # sizing up calls no model
+    assert "about 2 recipes" in asked[0][1] and "tokens" in asked[0][1]
+    assert [(b.file, b.outcome) for b in report.books] == [("a.epub", "skipped"), ("b.epub", "ingested")]
+    assert [b.file for b in shown] == ["b.epub"] and shown[0].cost_usd > 0
+    conn = db.connect(config.db_path)
+    assert conn.execute("SELECT count(*) FROM sources").fetchone()[0] == 1  # the skipped book was never registered
+
+
+def test_approval_mode_quit_stops_and_a_done_book_is_not_asked_about_again(config):
+    sample_book(config.books_dir / "a.epub", recipes=2)
+    sample_book(config.books_dir / "b.epub", recipes=3)
+    prompts, llm = sample_llm()
+    ingest.ingest(config, llm=llm, prompts=prompts, approve=lambda p: "yes" if p.file == "a.epub" else "quit")
+
+    asked = []
+    report = ingest.ingest(config, llm=llm, prompts=prompts, approve=lambda p: asked.append(p.file) or "quit")
+
+    assert asked == ["b.epub"]  # a.epub is done, so there is nothing to approve
+    assert [b.outcome for b in report.books] == ["already done"]
+
+
+def test_cap_applies_per_book_in_approval_mode(config):
+    sample_book(config.books_dir / "a.epub", recipes=2)
+    sample_book(config.books_dir / "b.epub", recipes=3)
+    prompts, llm = sample_llm(cost_per_call=0.4, cap=1.0)
+
+    report = ingest.ingest(config, llm=llm, prompts=prompts, approve=lambda p: "yes")
+
+    assert all(b.cost_usd >= 1.0 for b in report.books)  # the second book was not refused for the first one's spending
+    assert [b.outcome for b in report.books] == ["failed", "failed"]

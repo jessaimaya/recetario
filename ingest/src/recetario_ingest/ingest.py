@@ -4,6 +4,7 @@ import json
 import sqlite3
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -51,6 +52,13 @@ def scan(books_dir: Path) -> list[Path]:
     return sorted(path for path in books_dir.iterdir() if path.suffix.lower() in (".epub", ".pdf")) if books_dir.is_dir() else []
 
 
+# What a book costs the person to ingest, from the book's size: seconds of model time per recipe on each route
+# (measured on book 1: about 85 minutes for 285 recipes on the plan route, about 35 on the API).
+_MINUTES_PER_RECIPE = {"claude-code": 0.3, "anthropic": 0.12}
+
+BookDecision = str  # "yes" | "skip" | "quit"
+
+
 def ingest(
     config: Config,
     *,
@@ -58,9 +66,15 @@ def ingest(
     force_stage: str | None = None,
     llm: LlmAdapter | None = None,
     prompts: PromptRegistry | None = None,
+    approve: Callable[[BookReport], BookDecision] | None = None,
+    show: Callable[[BookReport], None] | None = None,
 ) -> RunReport:
     """Ingest every book in the books folder. A dry run does the free, local stages in a throwaway database and
-    artifact folder, never calls the model, and leaves nothing behind."""
+    artifact folder, never calls the model, and leaves nothing behind.
+
+    With `approve`, each book that still has work to do is first sized up locally (free) and shown to `approve`, which
+    answers "yes", "skip" or "quit"; `show` receives each book's report as soon as it is done. The spending cap then
+    applies per book instead of per run."""
     if force_stage is not None and force_stage not in STAGE_NAMES:
         raise ValueError(f"unknown stage {force_stage!r}; stages are {', '.join(STAGE_NAMES)}")
     report = RunReport(dry_run=dry_run)
@@ -80,7 +94,21 @@ def ingest(
             db.migrate(conn)
             seed.load_vocabulary(conn)  # idempotent; resolution needs the starter vocabulary to match against
             for path in scan(config.books_dir):
-                report.books.append(_ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts))
+                if approve is not None and not dry_run:
+                    preview = _preview(conn, config, path, prompts, force_stage)
+                    if preview is not None:
+                        decision = approve(preview)
+                        if decision == "quit":
+                            break
+                        if decision != "yes":
+                            report.books.append(BookReport(path.name, "skipped", "not approved"))
+                            continue
+                    if hasattr(llm, "spent_usd"):
+                        llm.spent_usd = 0.0  # type: ignore[union-attr]  # the cap is per book in this mode
+                book = _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts)
+                report.books.append(book)
+                if show is not None:
+                    show(book)
         finally:
             conn.close()
 
@@ -90,6 +118,29 @@ def ingest(
     if not dry_run and any(book.outcome in ("ingested", "failed") for book in report.books):
         _save_report(config.artifacts_dir, report)
     return report
+
+
+def _preview(conn, config: Config, path: Path, prompts: PromptRegistry, force_stage: str | None) -> BookReport | None:
+    """What ingesting this book would involve, worked out without calling the model or writing to the real database.
+    None when there is nothing to do (already ingested, or skipped as a duplicate), so there is nothing to approve."""
+    file_hash = sources.file_sha256(path)
+    source = sources.find_by_hash(conn, file_hash)
+    stage_names = [s.name for s in (stages.TextStage(path), stages.SegmentStage(), stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage(), stages.LocalizeStage())]
+    if source is not None and source.status == "done" and force_stage is None and set(stage_names) <= sources.stages_run(conn, source):
+        return None
+    with tempfile.TemporaryDirectory() as scratch:
+        throwaway = db.connect(":memory:")
+        try:
+            db.migrate(throwaway)
+            book = _ingest_book(throwaway, config, Path(scratch), path, None, None, prompts)
+        finally:
+            throwaway.close()
+    if book.outcome == "failed":
+        return book
+    recipes = book.kinds.get("recipe", 0)
+    minutes = recipes * _MINUTES_PER_RECIPE.get(config.provider, 0.2)
+    book.detail = f"about {recipes} recipes, extraction input ~{book.extraction_tokens:,} tokens, roughly {minutes:.0f} min of model time"
+    return book
 
 
 def _read_metadata(path: Path) -> epub.EpubMetadata:

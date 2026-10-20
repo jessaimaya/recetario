@@ -32,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--config", type=Path, help="config file (default: recetario.toml in the repo, if it exists)")
     run.add_argument("--dry-run", action="store_true", help="count segments and estimate tokens and cost; write nothing, call nothing")
     run.add_argument("--force-stage", choices=ingest.STAGE_NAMES, help="re-run this stage and the ones after it")
+    run.add_argument("--one-by-one", action="store_true", help="size up each book locally, ask before it is sent to the model, and show what it used afterwards")
 
     load_parser = commands.add_parser("load", help="write every finished book's recipes into the database again (after a review pass); calls no model")
     load_parser.add_argument("--config", type=Path)
@@ -64,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "db" and args.db_command == "init":
         return _db_init(args.db, fresh=args.fresh, fixtures=args.fixtures)
     if args.command == "ingest":
-        return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage)
+        return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage, one_by_one=args.one_by_one)
     if args.command == "load":
         return _load(args.config)
     if args.command == "review":
@@ -187,14 +188,62 @@ def _load(config_path: Path | None) -> int:
     return 0
 
 
-def _ingest(config_path: Path | None, dry_run: bool, force_stage: str | None) -> int:
+def _ask_approval(book: "ingest.BookReport") -> str:
+    print(f"\n{book.file}")
+    if book.outcome == "failed":
+        print(f"  cannot be read: {book.detail}")
+        return "skip"
+    print(f"  {book.detail}")
+    while True:
+        answer = input("  ingest this book? [y]es / [s]kip / [q]uit: ").strip().lower()
+        if answer in ("y", "yes"):
+            return "yes"
+        if answer in ("s", "skip", "n", "no"):
+            return "skip"
+        if answer in ("q", "quit"):
+            return "quit"
+
+
+def _ingest(config_path: Path | None, dry_run: bool, force_stage: str | None, one_by_one: bool = False) -> int:
     try:
         config = config_module.load_config(config_path)
     except config_module.ConfigError as error:
         print(error, file=sys.stderr)
         return 2
+    if one_by_one and not sys.stdin.isatty():
+        print("--one-by-one asks for approval on the terminal; run it in an interactive shell", file=sys.stderr)
+        return 2
+    if one_by_one and dry_run:
+        print("--dry-run already stops before any model call; drop --one-by-one", file=sys.stderr)
+        return 2
+    if one_by_one:
+        return _ingest_one_by_one(config, force_stage)
     report = ingest.ingest(config, dry_run=dry_run, force_stage=force_stage)
     print(ingest.format_report(report, config))
+    return 1 if any(book.outcome == "failed" for book in report.books) else 0
+
+
+def _ingest_one_by_one(config: config_module.Config, force_stage: str | None) -> int:
+    """Each book: sized up for free, approved by the person, ingested, then what it used and the running total."""
+    totals = {"books": 0, "in": 0, "out": 0, "usd": 0.0, "seconds": 0.0}
+
+    def show(book: "ingest.BookReport") -> None:
+        print(ingest.format_report(ingest.RunReport(False, [book]), config).split("\n", 1)[1])
+        if book.outcome in ("ingested", "failed"):
+            totals["books"] += 1
+            totals["in"] += book.tokens_in
+            totals["out"] += book.tokens_out
+            totals["usd"] += book.cost_usd
+            totals["seconds"] += book.seconds
+            price = "list price, covered by your plan" if config.provider == "claude-code" else "billed to your API key"
+            print(
+                f"  running total: {totals['books']} book(s) · tokens {totals['in']:,} in / {totals['out']:,} out · "
+                f"${totals['usd']:.4f} ({price}) · {totals['seconds'] / 60:.1f} min"
+            )
+
+    report = ingest.ingest(config, force_stage=force_stage, approve=_ask_approval, show=show)
+    if not report.books:
+        print(f"no books found in {config.books_dir}" if not ingest.scan(config.books_dir) else "stopped; nothing was sent to the model")
     return 1 if any(book.outcome == "failed" for book in report.books) else 0
 
 
