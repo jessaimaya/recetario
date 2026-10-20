@@ -127,3 +127,10 @@ def test_a_manual_edit_survives_re_ingesting_with_a_new_prompt_version(conn, sou
     steps = rows(conn, "SELECT l.text, l.provenance, l.prompt_version FROM localized_texts l JOIN raw_lines r ON r.id = l.owner_id WHERE l.owner_kind = 'raw_line' AND r.section = 'steps' AND r.position = 0")
     assert steps == [("Precalienta el horno.", "computed", "v2")]
     assert report.translations >= 5
+
+
+def test_a_value_with_the_wrong_unit_is_not_stored(conn, source):
+    extras = [{"key_text": "Sodium", "value_text": "361 kcal"}, {"key_text": "Total Fat", "value_text": "7.1 g"}]
+    report = load_recipes(conn, source.id, [artifact(extras=extras)])
+    assert report.skipped_values == 1 and report.attributes == 1
+    assert rows(conn, "SELECT e.name_en FROM attributes a JOIN vocab_entries e ON e.id = a.key_id") == [("fat_g",)]

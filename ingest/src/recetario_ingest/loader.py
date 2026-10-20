@@ -140,7 +140,7 @@ def _attributes(conn, recipe_id: int, data: dict, vocabulary: Vocabulary, report
             if entry is None or entry.id in seen:
                 continue
             info = conn.execute("SELECT value_type, unit, column_name FROM key_info WHERE entry_id = ?", (entry.id,)).fetchone()
-            value = _value(info["value_type"], pair["value_text"]) if info else None
+            value = _value(info["value_type"], pair["value_text"], info["unit"]) if info else None
             if value is None:
                 report.skipped_values += 1
                 continue
@@ -164,12 +164,20 @@ def _attributes(conn, recipe_id: int, data: dict, vocabulary: Vocabulary, report
                 report.attributes += 1
 
 
-def _value(value_type: str, text: str) -> float | int | str | None:
+_UNIT_WORDS = {"g", "mg", "mcg", "kg", "kcal", "ml", "l"}
+
+
+def _value(value_type: str, text: str, unit: str | None = None) -> float | int | str | None:
     if value_type == "duration":
         return parse_duration_minutes(text)
     if value_type == "number":
         match = _NUMBER.search(text.replace(",", ""))
-        return float(match.group()) if match else None
+        if not match:
+            return None
+        written = text[match.end():].strip().lower().rstrip(".")
+        if unit and written in _UNIT_WORDS and written != unit:  # "Sodium 361 kcal" is a typo in one book; don't store it as mg
+            return None
+        return float(match.group())
     return text.strip() or None
 
 

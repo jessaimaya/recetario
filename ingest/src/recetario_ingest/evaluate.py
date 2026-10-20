@@ -10,6 +10,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from recetario_ingest.segment import reconcile_title
 from recetario_ingest.extraction import extract_recipe
 from recetario_ingest.llm.adapter import LlmAdapter
 from recetario_ingest.validate import squash
@@ -21,6 +22,7 @@ class GoldenCase:
     text: str
     expected: dict
     reviewed: bool
+    printed_title: str = ""  # the title the book prints (a PDF's contents page); the pipeline trusts it over the model's
 
 
 @dataclass(frozen=True)
@@ -48,7 +50,7 @@ def load_golden(*directories: Path) -> list[GoldenCase]:
     for directory in directories:
         for path in sorted(directory.glob("*.json")) if directory.is_dir() else []:
             data = json.loads(path.read_text(encoding="utf-8"))
-            cases.append(GoldenCase(data["id"], data["text"], data["expected"], data.get("reviewed", False)))
+            cases.append(GoldenCase(data["id"], data["text"], data["expected"], data.get("reviewed", False), data.get("printed_title", "")))
     return cases
 
 
@@ -111,6 +113,8 @@ def run_eval(llm: LlmAdapter, cases: list[GoldenCase], version: str) -> list[Cas
     for case in cases:
         started = time.monotonic()
         result = extract_recipe(llm, case.text, version)
+        if result.extracted and case.printed_title:  # same step the extract stage applies after the model answers
+            result.extracted["title"] = reconcile_title(result.extracted.get("title", ""), case.printed_title, authoritative=True)
         seconds = time.monotonic() - started
         scores.append(
             CaseScore(

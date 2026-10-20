@@ -7,7 +7,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from recetario_ingest import db, epub, loader, seed, sources, stages
+from recetario_ingest import db, epub, loader, pdf, seed, sources, stages
 from recetario_ingest.artifacts import ArtifactStore
 from recetario_ingest.config import Config
 from recetario_ingest.cost import cost_usd, estimate_tokens
@@ -92,14 +92,19 @@ def ingest(
     return report
 
 
-def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -> BookReport:
-    if path.suffix.lower() != ".epub":
-        return BookReport(path.name, "skipped", "PDF books aren't supported yet")
+def _read_metadata(path: Path) -> epub.EpubMetadata:
+    """Book metadata in one shape for both formats; a PDF has no ISBN or language to offer, and often no title."""
+    if path.suffix.lower() == ".pdf":
+        info = pdf.read_metadata(path)
+        return epub.EpubMetadata(title=info.title or path.stem, author=info.author, isbn=None, asin=None, lang=None)
+    return epub.read_metadata(path)
 
+
+def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -> BookReport:
     started = time.monotonic()
     try:
-        metadata = epub.read_metadata(path)
-    except epub.EpubError as error:
+        metadata = _read_metadata(path)
+    except (epub.EpubError, pdf.PdfError) as error:
         return BookReport(path.name, "failed", str(error))
 
     pipeline: list[Stage] = [stages.TextStage(path), stages.SegmentStage()]
@@ -114,7 +119,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
         if other is not None:
             detail = f"same ISBN/ASIN as source {other.id} ({other.raw_title[:40]}), but a different file; not ingested"
             return BookReport(path.name, "skipped", detail)
-        source = sources.register(conn, file_hash, "epub", metadata)
+        source = sources.register(conn, file_hash, path.suffix.lower().lstrip("."), metadata)
     elif source.status == "done" and force_stage is None and set(stage_names) <= sources.stages_run(conn, source):
         return BookReport(path.name, "already done", source_id=source.id)
 

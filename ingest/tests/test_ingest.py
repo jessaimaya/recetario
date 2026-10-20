@@ -115,7 +115,7 @@ def test_same_asin_in_a_different_file_is_left_for_a_decision(config):
     assert books["b.epub"].outcome == "skipped" and "same ISBN/ASIN as source" in books["b.epub"].detail
 
 
-def test_pdfs_and_broken_epubs_are_reported_not_fatal(config):
+def test_a_broken_pdf_and_a_broken_epub_are_reported_not_fatal(config):
     (config.books_dir / "scan.pdf").write_bytes(b"%PDF")
     (config.books_dir / "broken.epub").write_text("nope")
     (config.books_dir / "notes.md").write_text("ignored")
@@ -123,7 +123,7 @@ def test_pdfs_and_broken_epubs_are_reported_not_fatal(config):
 
     outcomes = {b.file: b.outcome for b in ingest.ingest(config).books}
 
-    assert outcomes == {"broken.epub": "failed", "good.epub": "ingested", "scan.pdf": "skipped"}
+    assert outcomes == {"broken.epub": "failed", "good.epub": "ingested", "scan.pdf": "failed"}
 
 
 def test_a_book_without_a_table_of_contents_fails_with_a_clear_message(config):

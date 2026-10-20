@@ -7,7 +7,8 @@ from pathlib import Path
 
 from dataclasses import asdict
 
-from recetario_ingest import epub, extraction, line_split, lines, localize, resolver, segment, terms
+from recetario_ingest import segment as segment_module
+from recetario_ingest import epub, extraction, line_split, lines, localize, pdf, resolver, segment, terms
 from recetario_ingest.vocabulary import Vocabulary
 from recetario_ingest.pipeline import Context, Stage, StageError, StageOutput, Unit
 
@@ -29,6 +30,9 @@ class TextStage(Stage):
         return [Unit(key=None, input_hash=ctx.source.file_hash)]
 
     def run(self, ctx: Context, unit: Unit) -> StageOutput:
+        if self._path.suffix.lower() == ".pdf":
+            book = pdf.read_pdf(self._path)
+            return StageOutput({"format": "pdf", "pages": book.pages, "text": "\f".join(book.pages), "anchors": {}, "documents": {}, "toc": []})
         book = epub.read_epub(self._path)
         return StageOutput(
             {
@@ -48,22 +52,27 @@ class SegmentStage(Stage):
 
     def units(self, ctx: Context) -> list[Unit]:
         stored = ctx.store.read("text", None)
+        if stored.get("format") == "pdf":
+            return self._units(segment.slice_pages(stored["pages"]), "pages")
         if not stored["toc"]:
             raise StageError("the book has no table of contents; segmenting without one isn't implemented yet")
         book = epub.BookText(stored["text"], stored["anchors"], stored["documents"])
         toc = [epub.TocEntry(**entry) for entry in stored["toc"]]
+        return self._units(segment.slice_book(book, toc), "toc")
+
+    def _units(self, slices, method: str) -> list[Unit]:
         units, seen = [], set()
-        for slice_ in segment.slice_book(book, toc):
+        for slice_ in slices:
             key = _recipe_key(slice_.entry.src)
             while key in seen:  # two entries can point at the same anchor
                 key += "-again"
             seen.add(key)
             input_hash = _hash(slice_.entry.src, slice_.entry.title, slice_.text or "")
-            units.append(Unit(key=key, input_hash=input_hash, payload=slice_))
+            units.append(Unit(key=key, input_hash=input_hash, payload=(slice_, method)))
         return units
 
     def run(self, ctx: Context, unit: Unit) -> StageOutput:
-        slice_ = unit.payload
+        slice_, method = unit.payload
         kind, confidence = segment.classify(slice_.text)
         return StageOutput(
             {
@@ -73,7 +82,7 @@ class SegmentStage(Stage):
                 "title": segment.clean_title(slice_.entry.title),
                 "kind": kind,
                 "confidence": confidence,
-                "method": "toc",
+                "method": method,
                 "text": slice_.text or "",
             }
         )
@@ -103,6 +112,8 @@ class ExtractStage(Stage):
     def run(self, ctx: Context, unit: Unit) -> StageOutput:
         segment = unit.payload
         result = extraction.extract_recipe(ctx.llm, segment["text"], ctx.prompts.get(self.prompt_id).version)
+        if result.extracted and result.extracted.get("title"):
+            result.extracted["title"] = segment_module.reconcile_title(result.extracted["title"], segment["title"], authoritative=segment["method"] == "pages")
         return StageOutput(
             {
                 "recipe_key": unit.key,
