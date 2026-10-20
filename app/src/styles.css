@@ -191,13 +191,15 @@ button.chip.pending:hover { color: var(--mark-text); }
 .lang { margin: 18px 0 0; }
 
 .ingredients { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px 56px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
-.ing { display: grid; grid-template-columns: 4rem 3.6rem minmax(0, 1fr); align-items: baseline; column-gap: 8px; padding: 8px 0; }
-.ing .qty { font: 500 1.7rem/1.1 var(--serif); text-align: right; letter-spacing: -0.02em; white-space: nowrap; }
-.ing .unit { font: 500 1.1rem var(--serif); color: var(--ink); }
-.ing .name { font-size: 1rem; line-height: 1.4; }
+/* Quantity, unit and name sit in a row. The first two have a minimum width so names line up, but they grow with their
+   content, so a long quantity ("2 1/2") or unit ("cucharadas") pushes the name along instead of overlapping it. */
+.ing { display: flex; align-items: baseline; gap: 8px; padding: 8px 0; }
+.ing .qty { flex: none; min-width: 4.4rem; text-align: right; font: 500 1.6rem/1.1 var(--serif); letter-spacing: -0.02em; white-space: nowrap; }
+.ing .unit { flex: none; min-width: 3.4rem; font: 500 1.1rem var(--serif); color: var(--ink); }
+.ing .name { flex: 1; min-width: 0; font-size: 1rem; line-height: 1.4; overflow-wrap: anywhere; }
+.ing.nounit .name { margin-left: calc(3.4rem + 8px); }
 .ing.unresolved .name::after { content: " ·"; color: var(--mark-text); font-weight: 700; }
-.ing.nounit .name { grid-column: 2 / -1; }
-.ing.noqty .name { grid-column: 1 / -1; padding-left: 0.2rem; }
+.ing.noqty .name { margin-left: 0; padding-left: 0.2rem; }
 
 .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 22px; counter-reset: step; }
 .steps li { counter-increment: step; display: grid; grid-template-columns: 3rem minmax(0, 1fr); column-gap: 10px; align-items: baseline; font-size: 1.05rem; line-height: 1.65; max-width: 40em; }

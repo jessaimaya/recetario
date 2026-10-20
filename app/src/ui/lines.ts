@@ -15,7 +15,7 @@ const UNITS = new Set([
   "cup", "cups", "tbsp", "tbsps", "tsp", "tsps", "clove", "cloves", "can", "cans", "package", "packages", "slice", "slices", "pinch",
   "pinches", "dash", "dashes", "head", "heads", "bunch", "bunches", "stalk", "stalks", "sprig", "sprigs", "stick", "sticks", "jar", "jars",
   "bottle", "bottles", "bag", "bags", "box", "boxes", "handful", "quart", "quarts", "pint", "pints", "gallon", "gallons", "ounce", "ounces",
-  "pound", "pounds", "fillet", "fillets", "ear", "ears",
+  "pound", "pounds", "lbs", "fillet", "fillets", "ear", "ears",
 ]);
 
 const QUANTITY = /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|[½⅓⅔¼¾⅛])\s+/;

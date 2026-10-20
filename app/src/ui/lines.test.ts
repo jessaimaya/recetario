@@ -8,6 +8,7 @@ describe("splitLine", () => {
     ["905 g de papa", { qty: "905", unit: "g", name: "papa" }],
     ["1 1/2 cdas. de aceite de oliva", { qty: "1 1/2", unit: "cdas.", name: "aceite de oliva" }],
     ["1/2 cdita. de sal de mar", { qty: "1/2", unit: "cdita.", name: "sal de mar" }],
+    ["2 1/2 lbs. manzana - pelada", { qty: "2 1/2", unit: "lbs.", name: "manzana - pelada" }],
     ["2 tbsps. olive oil", { qty: "2", unit: "tbsps.", name: "olive oil" }],
     ["1 cup of milk", { qty: "1", unit: "cup", name: "milk" }],
     ["3 dientes de ajo", { qty: "3", unit: "dientes", name: "ajo" }],
