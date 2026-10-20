@@ -1,6 +1,6 @@
 @import "./fonts.css";
 
-/* Typography first: a quiet off-white page, black ink, one hand-drawn pink for what matters. */
+/* Typography first: a quiet off-white page, black ink, one hand-drawn pink for what matters. Always light, on purpose. */
 :root {
   --canvas: #dfdeda;
   --paper: #f6f5f1;
@@ -16,19 +16,6 @@
   --rail: 34px;
   --tabs: 56px;
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: #0b0b0a;
-    --paper: #151513;
-    --ink: #f1efe9;
-    --muted: #b0aea5;
-    --hair: #34332f;
-    --mark: #ff7aa2;
-    --mark-text: #ff8fb0;
-    color-scheme: dark;
-  }
 }
 
 * { box-sizing: border-box; }
