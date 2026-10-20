@@ -42,7 +42,17 @@ export function Recipes() {
         <input type="search" placeholder="Buscar por nombre…" value={query.value} onInput={(event) => (query.value = event.currentTarget.value)} aria-label="Buscar receta" />
         <Segmented label="Orden" value={sort.value} options={[{ value: "az", text: "A–Z" }, { value: "time", text: "Más rápidas" }]} onChange={(value) => (sort.value = value)} />
         {sources.length > 1 && (
-          <Segmented label="Libro" value={source.value} options={[{ value: "", text: "Todos" }, ...sources.map((name) => ({ value: name, text: name }))]} onChange={(value) => (source.value = value)} />
+          <label class="select">
+            <span class="eyebrow">Libro</span>
+            <select value={source.value} onChange={(event) => (source.value = event.currentTarget.value)}>
+              <option value="">Todos los libros ({sources.length})</option>
+              {sources.map((name) => (
+                <option key={name} value={name}>
+                  {name} · {all.filter((recipe) => shortTitle(recipe.source) === name).length}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
       </div>
       {list.length === 0 ? (
