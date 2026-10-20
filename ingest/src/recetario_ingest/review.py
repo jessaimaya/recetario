@@ -8,6 +8,7 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from recetario_ingest import duplicates
 from recetario_ingest.vocabulary import Entry, Proposal, Vocabulary, add_alias, create_entry, open_proposals
 from recetario_ingest.text import normalize
 
@@ -219,6 +220,37 @@ def spot_check_auto(
                         (entry.id, row["kind"], row["lang"], row["text_normalized"]),
                     )
                 counts["fixed"] += 1
+            else:
+                continue
+            break
+    return counts
+
+
+def review_duplicates(conn: sqlite3.Connection, input_fn: Callable[[str], str] = input, output: Callable[[str], None] = print) -> dict[str, int]:
+    """Walk through recipe pairs that look alike. "Duplicate" marks the later recipe as a duplicate of the earlier one; nothing is deleted."""
+    counts = {"duplicate": 0, "distinct": 0, "skipped": 0}
+    pairs = duplicates.candidates(conn)
+    output(f"{len(pairs)} look-alike pairs")
+    for position, pair in enumerate(pairs, 1):
+        output(f"\n[{position}/{len(pairs)}] ingredients {pair.overlap:.0%} alike, titles {pair.titles:.0%} alike")
+        for recipe_id in (pair.recipe_id, pair.other_id):
+            row = conn.execute("SELECT title_original, source_id FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+            lines_ = [r["text_original"] for r in conn.execute("SELECT text_original FROM raw_lines WHERE recipe_id = ? AND section = 'ingredients' ORDER BY position", (recipe_id,))]
+            output(f"  #{recipe_id} {row['title_original']}")
+            output("     " + "; ".join(lines_))
+        while True:
+            choice = input_fn("[d]uplicate  [n]ot a duplicate  [s]kip  [q]uit > ").strip().lower()[:1]
+            if choice == "q":
+                return counts
+            if choice in ("s", ""):
+                counts["skipped"] += 1
+            elif choice in ("d", "n"):
+                decision = "duplicate" if choice == "d" else "distinct"
+                with conn:
+                    conn.execute("INSERT INTO duplicate_reviews (recipe_id, other_id, decision) VALUES (?, ?, ?)", (pair.recipe_id, pair.other_id, decision))
+                    if decision == "duplicate":
+                        conn.execute("UPDATE recipes SET duplicate_of = ? WHERE id = ?", (pair.recipe_id, pair.other_id))
+                counts[decision] += 1
             else:
                 continue
             break

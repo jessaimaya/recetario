@@ -1,7 +1,7 @@
 import type { Availability, EntryId, RecipeForSearch, Requirement, SearchData } from "../core/types";
 
 /** The schema version this app reads (PRAGMA user_version, set by the Python migrations). */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3; // 3 only added duplicate_reviews, which the app does not read
 
 export type Row = Record<string, unknown>;
 

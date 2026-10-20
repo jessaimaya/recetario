@@ -55,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     review_parser.add_argument("--config", type=Path)
     review_parser.add_argument("--kind", choices=("ingredient", "equipment", "attribute_key"))
     review_parser.add_argument("--auto", action="store_true", help="spot-check the aliases accepted automatically instead")
+    review_parser.add_argument("--duplicates", action="store_true", help="review recipes that look like the same dish instead")
 
     args = parser.parse_args(argv)
     config_module.load_dotenv()
@@ -65,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "load":
         return _load(args.config)
     if args.command == "review":
-        return _review(args.config, args.kind, args.auto)
+        return _review(args.config, args.kind, args.auto, args.duplicates)
     if args.command == "eval" and args.eval_command == "resolve":
         return _eval_resolve(args.config, args.cases, args.prompt, args.model)
     if args.command == "eval":
@@ -73,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
-def _review(config_path: Path | None, kind: str | None, auto: bool) -> int:
+def _review(config_path: Path | None, kind: str | None, auto: bool, duplicate_pairs: bool = False) -> int:
     try:
         config = config_module.load_config(config_path)
     except config_module.ConfigError as error:
@@ -81,7 +82,10 @@ def _review(config_path: Path | None, kind: str | None, auto: bool) -> int:
         return 2
     conn = db.connect(config.db_path)
     try:
-        counts = (review.spot_check_auto if auto else review.review_proposals)(conn, kind)
+        if duplicate_pairs:
+            counts = review.review_duplicates(conn)
+        else:
+            counts = (review.spot_check_auto if auto else review.review_proposals)(conn, kind)
     except (EOFError, KeyboardInterrupt):
         print("\nstopped; decisions made so far are saved")
         return 0
