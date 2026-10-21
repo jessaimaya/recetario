@@ -91,6 +91,45 @@ def reject(conn: sqlite3.Connection, proposal: Proposal) -> Outcome:
     return Outcome(f'rejected "{proposal.term}"')
 
 
+def accept_above(
+    conn: sqlite3.Connection, threshold: float, kind: str | None = None, apply: bool = False, output: Callable[[str], None] = print
+) -> dict[str, int]:
+    """Accept every open proposal the model was at least `threshold` sure of, highest first. Without `apply` it only says
+    what would happen. A new entry with no name or no es-MX label, and a mapping with no target, are left for a person."""
+    eligible, left = [], 0
+    for proposal in sorted(open_proposals(conn, kind), key=lambda p: (-(p.confidence or 0), p.term)):
+        spec = proposal.new_entry or {}
+        usable = (
+            proposal.action == "map_to" and proposal.target_entry_id is not None
+            or proposal.action == "new_entry" and spec.get("name_en") and spec.get("name_es_mx")
+        )
+        if (proposal.confidence or 0) >= threshold and usable:
+            eligible.append(proposal)
+        else:
+            left += 1
+    mappings = [p for p in eligible if p.action == "map_to"]
+    created = {normalize((p.new_entry or {})["name_en"]) for p in eligible if p.action == "new_entry"}
+    output(f"{len(eligible)} proposals at {threshold:g} or more: {len(mappings)} map to an existing entry, "
+           f"{len(eligible) - len(mappings)} propose {len(created)} new entries; {left} stay open for you")
+    counts = {"accepted": 0, "skipped": 0}
+    if not apply:
+        for proposal in mappings:
+            target = next(e for e in _entries(conn, proposal.kind) if e.id == proposal.target_entry_id)
+            output(f'  maps: {proposal.kind} "{proposal.term}" -> {target.name_en} ({proposal.confidence:g})')
+        output("nothing was changed; add --apply to accept these (a backup of the database is made first)")
+        return {"would accept": len(eligible), "stay open": left}
+    for proposal in eligible:
+        if not any(p.id == proposal.id for p in open_proposals(conn, proposal.kind)):
+            continue  # already resolved together with an earlier one
+        try:
+            accept(conn, proposal)
+            counts["accepted"] += 1
+        except ValueError as error:
+            output(str(error))
+            counts["skipped"] += 1
+    return counts | {"stay open": len(open_proposals(conn, kind))}
+
+
 def _entries(conn: sqlite3.Connection, kind: str) -> list[Entry]:
     vocabulary = Vocabulary(conn, kind)
     return sorted(vocabulary._live.values(), key=lambda e: e.name_en)

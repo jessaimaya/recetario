@@ -2,7 +2,9 @@
 
 import argparse
 import json
+import shutil
 import sys
+import time
 from dataclasses import asdict, replace
 from datetime import date
 from pathlib import Path
@@ -65,6 +67,8 @@ def main(argv: list[str] | None = None) -> int:
     review_parser.add_argument("--config", type=Path)
     review_parser.add_argument("--kind", choices=("ingredient", "equipment", "attribute_key"))
     review_parser.add_argument("--auto", action="store_true", help="spot-check the aliases accepted automatically instead")
+    review_parser.add_argument("--accept-above", type=float, metavar="CONFIDENCE", help="accept every open proposal at or above this confidence (shows what it would do unless --apply)")
+    review_parser.add_argument("--apply", action="store_true", help="with --accept-above: really accept them, after backing up the database")
     review_parser.add_argument("--duplicates", action="store_true", help="review recipes that look like the same dish instead")
 
     args = parser.parse_args(argv)
@@ -80,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "load":
         return _load(args.config)
     if args.command == "review":
-        return _review(args.config, args.kind, args.auto, args.duplicates)
+        return _review(args.config, args.kind, args.auto, args.duplicates, args.accept_above, args.apply)
     if args.command == "eval" and args.eval_command == "resolve":
         return _eval_resolve(args.config, args.cases, args.prompt, args.model, args.provider)
     if args.command == "eval":
@@ -88,15 +92,24 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
-def _review(config_path: Path | None, kind: str | None, auto: bool, duplicate_pairs: bool = False) -> int:
+def _review(config_path: Path | None, kind: str | None, auto: bool, duplicate_pairs: bool = False, accept_above: float | None = None, apply: bool = False) -> int:
     try:
         config = config_module.load_config(config_path)
     except config_module.ConfigError as error:
         print(error, file=sys.stderr)
         return 2
+    if apply and accept_above is None:
+        print("--apply goes with --accept-above", file=sys.stderr)
+        return 2
+    if apply:
+        backup = config.db_path.with_name(f"{config.db_path.name}.bak-{time.strftime('%Y%m%dT%H%M%S')}")
+        shutil.copy2(config.db_path, backup)
+        print(f"backup: {backup}")
     conn = db.connect(config.db_path)
     try:
-        if duplicate_pairs:
+        if accept_above is not None:
+            counts = review.accept_above(conn, accept_above, kind, apply)
+        elif duplicate_pairs:
             counts = review.review_duplicates(conn)
         else:
             counts = (review.spot_check_auto if auto else review.review_proposals)(conn, kind)

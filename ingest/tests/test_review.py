@@ -150,3 +150,22 @@ def test_spot_check_keeps_or_fixes_auto_accepted_aliases(conn):
     rows = {r[0]: r[1:] for r in conn.execute("SELECT text_normalized, confirmed, source FROM aliases WHERE text_normalized LIKE '% thing'")}
     assert rows["a kept thing"] == (1, "auto") and rows["b wrong thing"] == (1, "review") and rows["c later thing"] == (0, "auto")
     assert Vocabulary(conn, "equipment").exact("b wrong thing").name_en == "pot"
+
+
+def test_accept_above_only_takes_confident_proposals_and_previews_first(conn):
+    propose_map(conn, "saute pan", "skillet", confidence=0.9)
+    propose_new(conn, "wok", "wok", "wok", confidence=0.85)
+    propose_new(conn, "tagine pot", "tagine", "tajín", confidence=0.7)
+    propose_new(conn, "mystery pan", "mystery pan", "", confidence=0.95)  # no es-MX label: a person decides
+
+    preview = review.accept_above(conn, 0.85, apply=False, output=lambda line: None)
+
+    assert preview == {"would accept": 2, "stay open": 2}
+    assert len(open_proposals(conn)) == 4  # nothing changed
+
+    done = review.accept_above(conn, 0.85, apply=True, output=lambda line: None)
+
+    assert done["accepted"] == 2 and done["stay open"] == 2
+    assert {p.term for p in open_proposals(conn)} == {"tagine pot", "mystery pan"}
+    assert Vocabulary(conn, "equipment").exact("wok") is not None
+    assert Vocabulary(conn, "equipment").exact("saute pan").name_en == "skillet"
