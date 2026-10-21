@@ -34,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--force-stage", choices=ingest.STAGE_NAMES, help="re-run this stage and the ones after it")
     run.add_argument("--one-by-one", action="store_true", help="size up each book locally, ask before it is sent to the model, and show what it used afterwards")
 
+    run.add_argument("--book", help="only books whose file name contains this text (with --one-by-one)")
+
     load_parser = commands.add_parser("load", help="write every finished book's recipes into the database again (after a review pass); calls no model")
     load_parser.add_argument("--config", type=Path)
 
@@ -65,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "db" and args.db_command == "init":
         return _db_init(args.db, fresh=args.fresh, fixtures=args.fixtures)
     if args.command == "ingest":
-        return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage, one_by_one=args.one_by_one)
+        return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage, one_by_one=args.one_by_one, only=args.book)
     if args.command == "load":
         return _load(args.config)
     if args.command == "review":
@@ -204,7 +206,7 @@ def _ask_approval(book: "ingest.BookReport") -> str:
             return "quit"
 
 
-def _ingest(config_path: Path | None, dry_run: bool, force_stage: str | None, one_by_one: bool = False) -> int:
+def _ingest(config_path: Path | None, dry_run: bool, force_stage: str | None, one_by_one: bool = False, only: str | None = None) -> int:
     try:
         config = config_module.load_config(config_path)
     except config_module.ConfigError as error:
@@ -213,17 +215,20 @@ def _ingest(config_path: Path | None, dry_run: bool, force_stage: str | None, on
     if one_by_one and not sys.stdin.isatty():
         print("--one-by-one asks for approval on the terminal; run it in an interactive shell", file=sys.stderr)
         return 2
+    if only is not None and not one_by_one:
+        print("--book works with --one-by-one", file=sys.stderr)
+        return 2
     if one_by_one and dry_run:
         print("--dry-run already stops before any model call; drop --one-by-one", file=sys.stderr)
         return 2
     if one_by_one:
-        return _ingest_one_by_one(config, force_stage)
+        return _ingest_one_by_one(config, force_stage, only)
     report = ingest.ingest(config, dry_run=dry_run, force_stage=force_stage)
     print(ingest.format_report(report, config))
     return 1 if any(book.outcome == "failed" for book in report.books) else 0
 
 
-def _ingest_one_by_one(config: config_module.Config, force_stage: str | None) -> int:
+def _ingest_one_by_one(config: config_module.Config, force_stage: str | None, only: str | None) -> int:
     """Each book: sized up for free, approved by the person, ingested, then what it used and the running total."""
     totals = {"books": 0, "in": 0, "out": 0, "usd": 0.0, "seconds": 0.0}
 
@@ -241,7 +246,7 @@ def _ingest_one_by_one(config: config_module.Config, force_stage: str | None) ->
                 f"${totals['usd']:.4f} ({price}) · {totals['seconds'] / 60:.1f} min"
             )
 
-    report = ingest.ingest(config, force_stage=force_stage, approve=_ask_approval, show=show)
+    report = ingest.ingest(config, force_stage=force_stage, approve=_ask_approval, show=show, only=only)
     if not report.books:
         print(f"no books found in {config.books_dir}" if not ingest.scan(config.books_dir) else "stopped; nothing was sent to the model")
     return 1 if any(book.outcome == "failed" for book in report.books) else 0

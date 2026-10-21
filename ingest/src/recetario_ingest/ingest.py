@@ -68,13 +68,14 @@ def ingest(
     prompts: PromptRegistry | None = None,
     approve: Callable[[BookReport], BookDecision] | None = None,
     show: Callable[[BookReport], None] | None = None,
+    only: str | None = None,
 ) -> RunReport:
     """Ingest every book in the books folder. A dry run does the free, local stages in a throwaway database and
     artifact folder, never calls the model, and leaves nothing behind.
 
     With `approve`, each book that still has work to do is first sized up locally (free) and shown to `approve`, which
     answers "yes", "skip" or "quit"; `show` receives each book's report as soon as it is done. The spending cap then
-    applies per book instead of per run."""
+    applies per book instead of per run. `only` limits the run to books whose file name contains that text."""
     if force_stage is not None and force_stage not in STAGE_NAMES:
         raise ValueError(f"unknown stage {force_stage!r}; stages are {', '.join(STAGE_NAMES)}")
     report = RunReport(dry_run=dry_run)
@@ -94,6 +95,8 @@ def ingest(
             db.migrate(conn)
             seed.load_vocabulary(conn)  # idempotent; resolution needs the starter vocabulary to match against
             for path in scan(config.books_dir):
+                if only is not None and only.lower() not in path.name.lower():
+                    continue
                 if approve is not None and not dry_run:
                     preview = _preview(conn, config, path, prompts, force_stage)
                     if preview is not None and preview.outcome != "failed" and not preview.kinds.get("recipe", 0):
