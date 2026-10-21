@@ -1,6 +1,6 @@
 import { useSignal } from "@preact/signals";
 
-import { devDatabaseAvailable, downloadDatabase, errorMessage, importDevDatabase, importFile, resetData, status, summary } from "../store";
+import { devDatabaseAvailable, downloadDatabase, errorMessage, importDevDatabase, importFile, resetData, resetDismissed, status, summary } from "../store";
 import { Card } from "./parts";
 import { useRail } from "./rail";
 
@@ -30,6 +30,13 @@ export function Data() {
           <h2>Guardar una copia</h2>
           <p class="lede">Lo que marcas aquí (qué se consigue, tu equipo) se guarda en el archivo. Descárgalo para llevarlo de vuelta al ingest.</p>
           <button type="button" onClick={downloadDatabase}>Descargar recetario.db</button>
+        </section>
+      )}
+      {status.value === "ready" && (
+        <section>
+          <h2>Preguntas descartadas</h2>
+          <p class="lede">Lo que contestas con «Luego» o «No» no se vuelve a preguntar. Aquí puedes hacer que se pregunte otra vez.</p>
+          <button type="button" onClick={resetDismissed}>Volver a preguntar todo</button>
         </section>
       )}
       {status.value === "ready" && (

@@ -4,7 +4,7 @@ import { blockedCounts, classificationQuestions, questionsToAsk, search } from "
 import type { Availability, EntryId, RecipeId, SearchData } from "./core/types";
 import { loadSearchData } from "./db/load";
 import { deleteValue, readValue, writeValue } from "./db/persist";
-import { type DatabaseSummary, type Entry, type RecipeCard, loadEntries, loadRecipeCards, setAvailability, setOwned, summarize } from "./db/queries";
+import { type DatabaseSummary, type Entry, type RecipeCard, applyPersonalState, loadEntries, loadRecipeCards, readPersonalState, setAvailability, setOwned, summarize } from "./db/queries";
 import { type AppDatabase, openDatabase } from "./db/sqlite";
 import { askModel } from "./nl/client";
 import { fold } from "./text";
@@ -166,8 +166,11 @@ export async function bootstrap(): Promise<void> {
 
 export async function importBytes(bytes: Uint8Array): Promise<void> {
   try {
-    await attach(bytes);
+    // A new file from ingest knows nothing of what I answered in the app (what I can buy, what I own): bring it along.
+    const carried = database ? readPersonalState(database) : null;
+    await attach(bytes, carried);
     await writeValue("db", bytes);
+    if (carried) saveSoon();
   } catch (error) {
     fail(error);
   }
@@ -182,9 +185,10 @@ export async function importDevDatabase(): Promise<void> {
   await importBytes(new Uint8Array(await response.arrayBuffer()));
 }
 
-async function attach(bytes: Uint8Array): Promise<void> {
+async function attach(bytes: Uint8Array, carried: ReturnType<typeof readPersonalState> | null = null): Promise<void> {
   const next = await openDatabase(bytes);
   try {
+    if (carried) applyPersonalState(next, carried);
     const data = loadSearchData(next);
     database?.close();
     database = next;
@@ -222,6 +226,7 @@ async function restorePantry(): Promise<void> {
   batch(() => {
     pantry.value = restored;
     pantryExtras.value = stillUnknown;
+    restoreDismissed();
   });
   savePantry();
 }
@@ -283,6 +288,44 @@ export function togglePantry(id: EntryId, on?: boolean): void {
 
 export function dismiss(key: string): void {
   dismissed.value = new Set(dismissed.value).add(key);
+  saveDismissed();
+}
+
+/** "Luego" and "No" are remembered between visits, by English name so they survive a new database file. */
+function saveDismissed(): void {
+  const names = [...dismissed.value].flatMap((key) => {
+    const [kind, id] = key.split(":");
+    const name = entryById.value.get(Number(id))?.nameEn;
+    return name === undefined ? [] : [`${kind}:${name}`];
+  });
+  try {
+    localStorage.setItem("dismissed", JSON.stringify(names));
+  } catch {
+    // a private window can refuse storage; they will be asked again next time
+  }
+}
+
+function restoreDismissed(): void {
+  let names: string[] = [];
+  try {
+    names = JSON.parse(localStorage.getItem("dismissed") ?? "[]") as string[];
+  } catch {
+    return;
+  }
+  const byName = new Map(ingredients.value.map((entry) => [entry.nameEn, entry.id]));
+  dismissed.value = new Set(
+    names.flatMap((name) => {
+      const [kind, ...rest] = name.split(":");
+      const id = byName.get(rest.join(":"));
+      return id === undefined ? [] : [`${kind}:${id}`];
+    }),
+  );
+}
+
+/** Ask again the questions that were put off or answered "no". */
+export function resetDismissed(): void {
+  dismissed.value = new Set();
+  saveDismissed();
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;

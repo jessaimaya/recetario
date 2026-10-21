@@ -204,3 +204,41 @@ export function setOwned(db: AppDatabase, entryId: EntryId, owned: boolean): voi
     [entryId, owned ? 1 : 0],
   );
 }
+
+/** What the person set in the app (what they can buy, what they own), by English name so it can move to a new database file. */
+export interface PersonalState {
+  availability: [name: string, availability: Availability][];
+  owned: string[];
+}
+
+export function readPersonalState(db: AppDatabase): PersonalState {
+  return {
+    availability: db
+      .all(
+        `SELECT e.name_en, i.availability FROM ingredient_info AS i JOIN vocab_entries AS e ON e.id = i.entry_id
+         WHERE e.kind = 'ingredient' AND e.merged_into_id IS NULL AND i.availability <> 'unknown'`,
+      )
+      .map((row): [string, Availability] => [text(row["name_en"]), row["availability"] as Availability]),
+    owned: db
+      .all(
+        `SELECT e.name_en FROM equipment_info AS q JOIN vocab_entries AS e ON e.id = q.entry_id
+         WHERE e.kind = 'equipment' AND e.merged_into_id IS NULL AND q.owned = 1`,
+      )
+      .map((row) => text(row["name_en"])),
+  };
+}
+
+/** Put a previous database's answers into a newly imported one; names the new file doesn't have are dropped. */
+export function applyPersonalState(db: AppDatabase, state: PersonalState): void {
+  const ids = new Map(
+    db.all("SELECT id, kind, name_en FROM vocab_entries WHERE merged_into_id IS NULL").map((row) => [`${text(row["kind"])}:${text(row["name_en"])}`, Number(row["id"])]),
+  );
+  for (const [name, availability] of state.availability) {
+    const id = ids.get(`ingredient:${name}`);
+    if (id !== undefined) setAvailability(db, id, availability);
+  }
+  for (const name of state.owned) {
+    const id = ids.get(`equipment:${name}`);
+    if (id !== undefined) setOwned(db, id, true);
+  }
+}

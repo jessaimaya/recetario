@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, inject, test } from "vitest";
 
 import { loadSearchData, type Row } from "./load";
-import { loadEntries, loadRecipeCards, loadRecipeDetail, setAvailability, setOwned, summarize } from "./queries";
+import { applyPersonalState, loadEntries, loadRecipeCards, loadRecipeDetail, readPersonalState, setAvailability, setOwned, summarize } from "./queries";
 import type { AppDatabase } from "./sqlite";
 
 let sqlite: DatabaseSync;
@@ -57,6 +57,27 @@ describe("writes", () => {
     setOwned(db, airFryer.id, false);
     expect(entry("air fryer").owned).toBe(false);
     expect(loadSearchData(db).catalog.owned.has(airFryer.id)).toBe(false);
+  });
+});
+
+describe("carrying answers to a new database file", () => {
+  test("what I can buy and what I own survive importing a fresh file", () => {
+    setAvailability(db, entry("tomato").id, "obtainable");
+    setAvailability(db, entry("walnut").id, "unobtainable");
+    setOwned(db, entry("blender").id, true);
+    const state = readPersonalState(db);
+    expect(state.availability).toContainEqual(["walnut", "unobtainable"]);
+    expect(state.owned).toEqual(["blender"]);
+
+    // a fresh copy knows none of it
+    sqlite.exec("UPDATE ingredient_info SET availability = 'unknown'; UPDATE equipment_info SET owned = 0");
+    expect(entry("walnut").availability).toBe("unknown");
+
+    applyPersonalState(db, { ...state, availability: [...state.availability, ["not in the new file", "obtainable"]] });
+
+    expect(entry("walnut").availability).toBe("unobtainable");
+    expect(entry("tomato").availability).toBe("obtainable");
+    expect(entry("blender").owned).toBe(true);
   });
 });
 
