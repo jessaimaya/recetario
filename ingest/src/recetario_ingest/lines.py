@@ -76,7 +76,7 @@ _NOISE = re.compile(r"\s*,?\s*\b(?:" + "|".join(_NOISE_TAILS) + r")\b.*$", re.IG
 _NUMBER = r"(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?)"
 _QUANTITY = re.compile(rf"^(?P<low>{_NUMBER})(?:\s*(?:-|–|to)\s*(?P<high>{_NUMBER}))?\s+")
 _CONTAINER = re.compile(r"^\((?P<size>[^()]*?)\)\s*")
-_TRADEMARK = re.compile(r"[®™©]")
+_TRADEMARK = re.compile(r"[®™©*†‡]")  # also footnote marks: "bacon bits*"
 _PARENTHESES = re.compile(r"\s*\(([^()]*)\)?")
 _SPLIT = re.compile(r",|\s+-\s+|\s+–\s+|;")
 

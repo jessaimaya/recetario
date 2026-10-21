@@ -89,3 +89,14 @@ def test_split_line_returns_parts_and_marks_the_first():
     llm = _llm([{"name": "salt", "relation": "and"}, {"name": "pepper", "relation": "and"}, {"name": " ", "relation": "and"}])
     parts, _ = split_line(llm, "v1", "salt and pepper to taste", "salt and pepper")
     assert parts == [{"name": "salt", "relation": "first"}, {"name": "pepper", "relation": "and"}]
+
+
+def test_a_footnote_mark_is_not_part_of_the_name():
+    parsed = parse_line("1 (3 oz. ) package bacon bits*")
+    assert parsed.name == "bacon bits" and parsed.unit == "package"
+
+
+def test_normalize_term_drops_footnote_marks():
+    from recetario_ingest.terms import normalize_term
+
+    assert normalize_term("ingredient", "bacon bits*") == normalize_term("ingredient", "bacon bits")

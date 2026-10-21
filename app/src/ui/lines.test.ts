@@ -1,8 +1,13 @@
 import { describe, expect, test } from "vitest";
 
 import { splitLine } from "./lines";
+import { unresolvedName } from "./parts";
 
 describe("splitLine", () => {
+  test("a fraction takes de before the unit", () => {
+    expect(splitLine("1/3 de taza de trocitos de tocino")).toEqual({ qty: "1/3", unit: "taza", name: "trocitos de tocino" });
+  });
+
   test.each([
     ["2 tazas de agua", { qty: "2", unit: "tazas", name: "agua" }],
     ["905 g de papa", { qty: "905", unit: "g", name: "papa" }],
@@ -27,5 +32,12 @@ describe("splitLine", () => {
   test("a line with no quantity is all name", () => {
     expect(splitLine("sal y pimienta al gusto")).toEqual({ qty: "", unit: "", name: "sal y pimienta al gusto" });
     expect(splitLine("  aceite  ")).toEqual({ qty: "", unit: "", name: "aceite" });
+  });
+});
+
+describe("unresolvedName", () => {
+  test("drops the leading de, the footnote mark and the preparation", () => {
+    expect(unresolvedName("1/3 de taza de trocitos de tocino* (como Hormel®)")).toBe("trocitos de tocino");
+    expect(unresolvedName("2 plátanos grandes, pelados y rebanados")).toBe("plátanos grandes");
   });
 });

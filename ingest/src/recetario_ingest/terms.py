@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from recetario_ingest import lines
 from recetario_ingest.text import normalize
 
-_TRADEMARKS = re.compile(r"[®™©]")
+_TRADEMARKS = re.compile(r"[®™©*†‡]")  # also footnote marks: "bacon bits*"
 _PARENTHETICAL = re.compile(r"\([^)]*\)")
 _DIMENSIONS = re.compile(r"\b\d+(?:\.\d+)?\s*[”“\"']?\s*[x×]\s*\d+(?:\.\d+)?\s*[”“\"']?|\b\d+(?:\.\d+)?[- ]?(?:qt|quart|inch|in|cup)s?\b\.?")
 _EQUIPMENT_FILLER = {"big", "large", "small", "medium", "heavy", "deep", "shallow", "preheated", "greased", "prepared", "extra", "sized"}

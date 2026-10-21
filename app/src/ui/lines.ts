@@ -20,12 +20,17 @@ const UNITS = new Set([
 
 const QUANTITY = /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|[½⅓⅔¼¾⅛])\s+/;
 
+function firstWord(text: string): string {
+  return (text.split(/\s+/, 1)[0] ?? "").toLowerCase().replace(/\.$/, "");
+}
+
 export function splitLine(text: string): SplitLine {
   const trimmed = text.trim();
   const quantity = QUANTITY.exec(trimmed);
   if (quantity === null) return { qty: "", unit: "", name: trimmed };
 
-  let rest = trimmed.slice(quantity[0].length);
+  // "1/3 de taza de tocino": a fraction takes "de" before the unit in Spanish
+  let rest = trimmed.slice(quantity[0].length).replace(/^de\s+(?=\S+\s)/i, (lead) => (UNITS.has(firstWord(trimmed.slice(quantity[0].length + lead.length))) ? "" : lead));
   let unit = "";
   const [word = ""] = rest.split(/\s+/, 1);
   if (UNITS.has(word.toLowerCase().replace(/\.$/, ""))) {
