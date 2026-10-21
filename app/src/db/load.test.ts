@@ -79,11 +79,9 @@ describe("loadSearchData", () => {
     expect(find(data, "pesto").produces).toBe(entry("pesto"));
   });
 
-  test("an unresolved line is a null alternative", () => {
-    expect(find(loadSearchData(db), "pepino-con-chamoy").requirements).toContainEqual({
-      kind: "ingredient",
-      anyOf: [null],
-    });
+  test("an unresolved line is a null alternative that carries its text", () => {
+    const requirements = find(loadSearchData(db), "pepino-con-chamoy").requirements;
+    expect(requirements).toContainEqual({ kind: "ingredient", anyOf: [null], label: expect.stringMatching(/\w/), search: expect.stringMatching(/\w/) });
   });
 
   test("reads availability, ownership and the hierarchy", () => {
@@ -112,22 +110,26 @@ describe("search over the fixtures", () => {
   const onHand = () =>
     ["egg", "tomato", "onion", "serrano pepper", "avocado", "lime", "pasta", "basil", "cucumber", "banana", "milk"].map(entry);
 
-  test("a fresh database knows nothing yet: only recipes fully on hand match", () => {
+  test("a fresh database knows nothing yet: only recipes fully on hand match, or short only by unresolved lines", () => {
     const data = loadSearchData(db);
     expect(search({ onHand: [], maxMissing: 10 }, data)).toEqual([]);
     expect(search({ onHand: onHand(), maxMissing: 10 }, data).map((r) => recipeKey(r.recipeId))).toEqual([
-      "guacamole", "huevos-a-la-mexicana",
+      "guacamole", "huevos-a-la-mexicana", "pepino-con-chamoy",
     ]);
   });
 
   test("my kitchen", () => {
     setUpKitchen();
     const results = search({ onHand: onHand(), maxMissing: 1 }, loadSearchData(db));
-    expect(results.map((r) => recipeKey(r.recipeId))).toEqual([
-      "guacamole", "huevos-a-la-mexicana", "licuado-de-platano", "pasta-al-pesto",
+    expect(results.map((r) => recipeKey(r.recipeId)).sort()).toEqual([
+      "guacamole", "huevos-a-la-mexicana", "licuado-de-platano", "pasta-al-pesto", "pepino-con-chamoy",
     ]);
     // Making pesto needs pecans, parmesan and garlic; buying pesto is one item.
-    expect(results.at(-1)?.missing).toEqual([{ anyOf: [entry("pesto")] }]);
+    expect(results.find((r) => recipeKey(r.recipeId) === "pasta-al-pesto")?.missing).toEqual([{ anyOf: [entry("pesto")] }]);
+    // The cucumber dish is only short of the line the vocabulary doesn't know yet.
+    expect(results.find((r) => recipeKey(r.recipeId) === "pepino-con-chamoy")?.missing).toEqual([
+      { anyOf: [], unresolved: expect.stringMatching(/\w/) },
+    ]);
   });
 
   test("pesto on hand completes pasta al pesto", () => {
@@ -148,7 +150,7 @@ describe("search over the fixtures", () => {
     expect(result).toEqual({ kind: "match", missing: [] });
   });
 
-  test("an unresolved line blocks its recipe until it's reviewed", () => {
+  test("an unresolved line is one missing ingredient until it's reviewed", () => {
     setUpKitchen();
     const data = loadSearchData(db);
     const result = match(find(data, "pepino-con-chamoy"), {
@@ -156,6 +158,6 @@ describe("search over the fixtures", () => {
       recipes: new Map(data.recipes.map((r) => [r.id, r])),
       onHand: onHand(),
     });
-    expect(result).toEqual({ kind: "blocked", blocks: [{ reason: "unresolved", ids: [recipeId("pepino-con-chamoy")] }] });
+    expect(result).toEqual({ kind: "match", missing: [{ anyOf: [], unresolved: expect.stringMatching(/\w/) }] });
   });
 });

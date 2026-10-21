@@ -42,6 +42,7 @@ const recipes = new Map(
 );
 
 const ok = (...missing: number[][]): MatchResult => ({ kind: "match", missing: missing.map((anyOf) => ({ anyOf })) });
+const unresolvedNeed = (label = "") => ({ anyOf: [], unresolved: label });
 const blocked = (...blocks: [string, number[]][]): MatchResult => ({
   kind: "blocked",
   blocks: blocks.map(([reason, ids]) => ({ reason, ids })) as Extract<MatchResult, { kind: "blocked" }>["blocks"],
@@ -53,6 +54,7 @@ interface Case {
   name: string;
   needs: Requirement[];
   onHand?: number[];
+  onHandText?: string[];
   exclude?: number[];
   expected: MatchResult;
 }
@@ -66,7 +68,11 @@ const cases: Case[] = [
   { name: "unobtainable blocks", needs: [ing(SAFFRON)], expected: blocked(["unobtainable", [SAFFRON]]) },
   { name: "on hand beats unobtainable", needs: [ing(SAFFRON)], onHand: [SAFFRON], expected: ok() },
   { name: "on hand beats unknown", needs: [ing(KALE)], onHand: [KALE], expected: ok() },
-  { name: "unresolved line blocks, pointing at the recipe", needs: [ing(null)], expected: blocked(["unresolved", [UNDER_TEST]]) },
+  { name: "an unresolved line counts as one missing ingredient, not a block", needs: [ing(null)], expected: { kind: "match", missing: [unresolvedNeed()] } },
+  { name: "an unresolved line is covered by the person's words", needs: [{ kind: "ingredient", anyOf: [null], label: "2 cups chopped kale" }], onHandText: ["kale"], expected: ok() },
+  { name: "words match whole words only", needs: [{ kind: "ingredient", anyOf: [null], label: "kalematic" }], onHandText: ["kale"], expected: { kind: "match", missing: [unresolvedNeed("kalematic")] } },
+  { name: "plural words cover too", needs: [{ kind: "ingredient", anyOf: [null], label: "3 tomatoes" }], onHandText: ["tomato"], expected: ok() },
+  { name: "the same unresolved line is listed once", needs: [{ kind: "ingredient", anyOf: [null], label: "saffron" }, { kind: "ingredient", anyOf: [null], label: "saffron" }], expected: { kind: "match", missing: [unresolvedNeed("saffron")] } },
 
   // Hierarchy
   { name: "a child on hand covers its parent", needs: [ing(CHEESE)], onHand: [CHEDDAR], expected: ok() },
@@ -79,7 +85,7 @@ const cases: Case[] = [
   { name: "OR-group: all unobtainable", needs: [ing(WALNUT, SAFFRON)], expected: blocked(["unobtainable", [WALNUT, SAFFRON]]) },
   { name: "OR-group: unknown + unobtainable is unclassified", needs: [ing(WALNUT, KALE)], expected: blocked(["unclassified", [KALE]]) },
   { name: "OR-group: an unresolved alternative doesn't block an obtainable one", needs: [ing(null, PECAN)], expected: ok([PECAN]) },
-  { name: "OR-group: unresolved + unobtainable is unresolved", needs: [ing(null, WALNUT)], expected: blocked(["unresolved", [UNDER_TEST]]) },
+  { name: "OR-group: unresolved + unobtainable is an unresolved need", needs: [ing(null, WALNUT)], expected: { kind: "match", missing: [unresolvedNeed()] } },
 
   // Exclusions
   { name: "excluded ingredient blocks", needs: [ing(TOMATO)], exclude: [TOMATO], expected: blocked(["excluded", [TOMATO]]) },
@@ -114,13 +120,13 @@ const cases: Case[] = [
   {
     name: "blocks are merged and ordered by reason",
     needs: [ing(KALE), ing(SAFFRON), eq(AIR_FRYER), ing(null), ing(LEMONGRASS)],
-    expected: blocked(["unobtainable", [SAFFRON, LEMONGRASS]], ["equipment", [AIR_FRYER]], ["unresolved", [UNDER_TEST]], ["unclassified", [KALE]]),
+    expected: blocked(["unobtainable", [SAFFRON, LEMONGRASS]], ["equipment", [AIR_FRYER]], ["unclassified", [KALE]]),
   },
 ];
 
 describe("match", () => {
-  test.each(cases)("$name", ({ needs, onHand = [], exclude, expected }) => {
-    const result = match(recipe(UNDER_TEST, null, ...needs), { catalog, recipes, onHand, exclude });
+  test.each(cases)("$name", ({ needs, onHand = [], onHandText, exclude, expected }) => {
+    const result = match(recipe(UNDER_TEST, null, ...needs), { catalog, recipes, onHand, onHandText, exclude });
     expect(result).toEqual(expected);
   });
 });

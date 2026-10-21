@@ -1,3 +1,4 @@
+import { fold } from "../text";
 import type {
   Block,
   BlockReason,
@@ -15,6 +16,8 @@ export interface MatchInput {
   /** Every recipe a sub-recipe line may point at. */
   recipes: ReadonlyMap<RecipeId, RecipeForMatch>;
   onHand: Iterable<EntryId>;
+  /** Words for what is on hand, folded (see `fold`); used only for lines the vocabulary hasn't resolved. */
+  onHandText?: Iterable<string>;
   exclude?: Iterable<EntryId>;
 }
 
@@ -47,12 +50,18 @@ export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => Ma
   const obtainable = covering(
     [...catalog.availability].filter(([, availability]) => availability === "obtainable").map(([id]) => id),
   );
+  const onHandWords = [...(input.onHandText ?? [])].filter((word) => word !== "");
+  /** An unresolved line is covered when one of the person's words appears in it as whole words ("kale" in "2 cups kale"). */
+  const coveredByWords = (label: string): boolean => {
+    const padded = ` ${fold(label).replace(/[^a-z0-9ñ]+/g, " ").trim()} `;
+    return onHandWords.some((word) => padded.includes(` ${word} `) || padded.includes(` ${word}s `) || padded.includes(` ${word}es `));
+  };
   const exclude = new Set(input.exclude ?? []);
   const isExcluded = (id: EntryId) => ancestorsOrSelf(id).some((a) => exclude.has(a));
   const availabilityOf = (id: EntryId) =>
     obtainable.has(id) ? "obtainable" : (catalog.availability.get(id) ?? "unknown");
 
-  function ingredient(recipe: RecipeForMatch, anyOf: (EntryId | null)[], out: Evaluation): void {
+  function ingredient(anyOf: (EntryId | null)[], label: string | undefined, search: string | undefined, out: Evaluation): void {
     const candidates = anyOf.filter((id) => id === null || !isExcluded(id));
     if (candidates.length === 0) {
       out.blocks.push({ reason: "excluded", ids: anyOf.filter((id) => id !== null) });
@@ -60,6 +69,8 @@ export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => Ma
     }
     const resolved = candidates.filter((id) => id !== null);
     if (resolved.some((id) => onHand.has(id))) return;
+    const hasUnresolved = candidates.length > resolved.length;
+    if (hasUnresolved && label !== undefined && coveredByWords(search ?? label)) return;
 
     const buyable = resolved.filter((id) => availabilityOf(id) === "obtainable");
     if (buyable.length > 0) {
@@ -68,7 +79,7 @@ export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => Ma
     }
     const unknown = resolved.filter((id) => availabilityOf(id) === "unknown");
     if (unknown.length > 0) out.blocks.push({ reason: "unclassified", ids: unknown });
-    else if (resolved.length < candidates.length) out.blocks.push({ reason: "unresolved", ids: [recipe.id] });
+    else if (hasUnresolved) out.missing.push({ anyOf: [], unresolved: label ?? "" });
     else out.blocks.push({ reason: "unobtainable", ids: resolved });
   }
 
@@ -97,7 +108,7 @@ export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => Ma
   function requirement(recipe: RecipeForMatch, req: Requirement, stack: RecipeId[], out: Evaluation): void {
     switch (req.kind) {
       case "ingredient":
-        return ingredient(recipe, req.anyOf, out);
+        return ingredient(req.anyOf, req.label, req.search, out);
       case "equipment":
         if (!req.anyOf.some((id) => owned.has(id))) out.blocks.push({ reason: "equipment", ids: req.anyOf });
         return;
@@ -133,7 +144,8 @@ function uniqueNeeds(needs: Need[]): Need[] {
   const byKey = new Map<string, Need>();
   for (const need of needs) {
     const anyOf = [...new Set(need.anyOf)].sort((a, b) => a - b);
-    byKey.set(anyOf.join(","), { anyOf });
+    if (need.unresolved !== undefined) byKey.set(`u:${need.unresolved}`, { anyOf, unresolved: need.unresolved });
+    else byKey.set(anyOf.join(","), { anyOf });
   }
   return [...byKey.values()];
 }

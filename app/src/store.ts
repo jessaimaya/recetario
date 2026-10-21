@@ -7,6 +7,7 @@ import { deleteValue, readValue, writeValue } from "./db/persist";
 import { type DatabaseSummary, type Entry, type RecipeCard, loadEntries, loadRecipeCards, setAvailability, setOwned, summarize } from "./db/queries";
 import { type AppDatabase, openDatabase } from "./db/sqlite";
 import { askModel } from "./nl/client";
+import { fold } from "./text";
 import { resolveTerm, splitTerms } from "./ui/find";
 
 export type Status = "loading" | "empty" | "ready" | "error";
@@ -51,11 +52,24 @@ export interface Asked {
 export const asked = signal<Asked | null>(null);
 export const askStatus = signal<{ busy: boolean; message: string | null }>({ busy: false, message: null });
 
+/** What is on hand in words (names, aliases, and typed terms the vocabulary lacks), so it can cover lines still unresolved. */
+function wordsFor(ids: Iterable<EntryId>, extras: readonly string[]): string[] {
+  const words = new Set(extras.map(fold));
+  for (const id of ids) {
+    const entry = entryById.value.get(id);
+    if (entry) for (const name of [entry.label, entry.nameEn, ...entry.aliases]) words.add(fold(name));
+  }
+  return [...words];
+}
+
 const filters = computed(() => {
   const question = asked.value;
-  if (question === null) return { onHand: [...pantry.value], maxMissing: maxMissing.value, maxTotalMin: maxTotalMin.value };
+  if (question === null) {
+    return { onHand: [...pantry.value], onHandText: wordsFor(pantry.value, pantryExtras.value), maxMissing: maxMissing.value, maxTotalMin: maxTotalMin.value };
+  }
   return {
     onHand: question.have.map((entry) => entry.id),
+    onHandText: wordsFor(question.have.map((entry) => entry.id), question.unknown),
     excludeIngredients: question.exclude.map((entry) => entry.id),
     maxMissing: question.maxMissing,
     maxTotalMin: question.maxTotalMin,

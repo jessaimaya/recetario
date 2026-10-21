@@ -1,4 +1,5 @@
 import type { Availability, EntryId, RecipeForSearch, Requirement, SearchData } from "../core/types";
+import { LOCALE } from "./queries";
 
 /** The schema version this app reads (PRAGMA user_version, set by the Python migrations). */
 export const SCHEMA_VERSION = 3; // 3 only added duplicate_reviews, which the app does not read
@@ -56,6 +57,25 @@ export function loadSearchData(db: Database): SearchData {
     });
   }
 
+  // Lines the vocabulary hasn't resolved: the view has no text for them, so find it by the key it builds from the line or its OR-group.
+  // The label is what the person reads (the translation when there is one); `search` holds both languages for matching.
+  const labels = new Map<string, { label: string; search: string }>();
+  const openLines = db.all(
+    `SELECT r.recipe_id, rl.id, rl.alt_group, r.text_original, t.text AS translated
+     FROM recipe_lines AS rl
+     JOIN raw_lines AS r ON r.id = rl.raw_line_id
+     LEFT JOIN localized_texts AS t ON t.owner_kind = 'raw_line' AND t.owner_id = r.id AND t.locale = ?
+     WHERE rl.ingredient_id IS NULL AND rl.sub_recipe_id IS NULL AND rl.is_optional = 0`,
+    [LOCALE],
+  );
+  for (const row of openLines) {
+    const key = `${num(row["recipe_id"])}:i:${row["alt_group"] === null ? `l${num(row["id"])}` : `g${num(row["alt_group"])}`}`;
+    if (labels.has(key)) continue;
+    const original = String(row["text_original"]);
+    const translated = row["translated"] === null ? null : String(row["translated"]);
+    labels.set(key, { label: translated ?? original, search: translated === null ? original : `${original} ${translated}` });
+  }
+
   // Rows sharing (recipe_id, req_key) are the alternatives of one requirement.
   const groups = new Map<string, Requirement>();
   const reqRows = db.all(
@@ -79,6 +99,8 @@ export function loadSearchData(db: Database): SearchData {
     if (req.kind === "ingredient") {
       const id = canonicalOrNull(row["entry_id"]);
       if (!req.anyOf.includes(id)) req.anyOf.push(id);
+      const open = labels.get(key);
+      if (id === null && open !== undefined) Object.assign(req, open);
     } else if (req.kind === "equipment") {
       const id = canonical(num(row["entry_id"]));
       if (!req.anyOf.includes(id)) req.anyOf.push(id);

@@ -11,6 +11,7 @@ export function search(filters: SearchFilters, data: SearchData): RankedRecipe[]
     catalog: data.catalog,
     recipes: byId,
     onHand: filters.onHand,
+    onHandText: filters.onHandText,
     exclude: filters.excludeIngredients,
   });
 
@@ -77,7 +78,7 @@ export interface ClassificationQuestion {
  */
 export function classificationQuestions(filters: SearchFilters, data: SearchData, limit = 5): ClassificationQuestion[] {
   const byId = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
-  const matcher = createMatcher({ catalog: data.catalog, recipes: byId, onHand: filters.onHand, exclude: filters.excludeIngredients });
+  const matcher = createMatcher({ catalog: data.catalog, recipes: byId, onHand: filters.onHand, onHandText: filters.onHandText, exclude: filters.excludeIngredients });
   const questions = new Map<EntryId, ClassificationQuestion>();
   for (const recipe of data.recipes) {
     if (recipe.duplicateOf !== null) continue;
@@ -99,7 +100,7 @@ export function classificationQuestions(filters: SearchFilters, data: SearchData
 /** How many recipes each block reason keeps out of the results (a recipe counts under its first reason). */
 export function blockedCounts(filters: SearchFilters, data: SearchData): Partial<Record<BlockReason, number>> {
   const byId = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
-  const matcher = createMatcher({ catalog: data.catalog, recipes: byId, onHand: filters.onHand, exclude: filters.excludeIngredients });
+  const matcher = createMatcher({ catalog: data.catalog, recipes: byId, onHand: filters.onHand, onHandText: filters.onHandText, exclude: filters.excludeIngredients });
   const counts: Partial<Record<BlockReason, number>> = {};
   for (const recipe of data.recipes) {
     if (recipe.duplicateOf !== null) continue;

@@ -308,7 +308,7 @@ function HiddenNote() {
   const counts = blocked.value;
   const parts = [
     counts.unclassified ? `${counts.unclassified} esperan que me digas si sus ingredientes se consiguen por aquí` : null,
-    counts.unresolved ? `${counts.unresolved} tienen ingredientes que el vocabulario aún no reconoce (falta revisarlos al importar)` : null,
+    counts.unresolved ? `${counts.unresolved} usan una receta base que no encuentro` : null,
     counts.equipment ? `${counts.equipment} necesitan equipo que no tienes` : null,
     counts.unobtainable ? `${counts.unobtainable} llevan algo que no se consigue` : null,
   ].filter((part) => part !== null);

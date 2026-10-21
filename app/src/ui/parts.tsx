@@ -1,3 +1,4 @@
+import { splitLine } from "./lines";
 import type { ComponentChildren } from "preact";
 
 import type { Need } from "../core/types";
@@ -24,7 +25,14 @@ export function shortTitle(title: string): string {
   return short || title;
 }
 
+/** "2 large plantains, peeled and sliced (about 1 lb)" → "large plantains". */
+function unresolvedName(line: string): string {
+  const name = splitLine(line).name.replace(/\([^)]*\)?/g, "").split(/[,;]| - /)[0]?.trim();
+  return name || line;
+}
+
 export function needText(need: Need): string {
+  if (need.unresolved !== undefined) return `${unresolvedName(need.unresolved)} (sin reconocer)`;
   return need.anyOf.map((id) => entryById.value.get(id)?.label ?? `#${id}`).join(" o ");
 }
 

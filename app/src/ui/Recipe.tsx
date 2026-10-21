@@ -85,7 +85,7 @@ export function Recipe({ id }: { id: number }) {
       </ul>
       {unresolved > 0 && (
         <p class="note">
-          Los marcados con · aún no están en el vocabulario ({unresolved}); mientras tanto esta receta no sale en las búsquedas.
+          Los marcados con · aún no están en el vocabulario ({unresolved}); en la búsqueda cuentan como algo que te falta, salvo que ya lo tengas escrito en tu lista.
         </p>
       )}
 
