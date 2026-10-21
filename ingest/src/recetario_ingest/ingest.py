@@ -68,14 +68,16 @@ def ingest(
     prompts: PromptRegistry | None = None,
     approve: Callable[[BookReport], BookDecision] | None = None,
     show: Callable[[BookReport], None] | None = None,
-    only: str | None = None,
+    books: list[Path] | None = None,
+    stop_after: int | None = None,
 ) -> RunReport:
     """Ingest every book in the books folder. A dry run does the free, local stages in a throwaway database and
     artifact folder, never calls the model, and leaves nothing behind.
 
     With `approve`, each book that still has work to do is first sized up locally (free) and shown to `approve`, which
     answers "yes", "skip" or "quit"; `show` receives each book's report as soon as it is done. The spending cap then
-    applies per book instead of per run. `only` limits the run to books whose file name contains that text."""
+    applies per book instead of per run. `books` replaces the folder scan with these files, in this order; `stop_after` ends the run once that many books
+    have been sent to the model."""
     if force_stage is not None and force_stage not in STAGE_NAMES:
         raise ValueError(f"unknown stage {force_stage!r}; stages are {', '.join(STAGE_NAMES)}")
     report = RunReport(dry_run=dry_run)
@@ -94,9 +96,7 @@ def ingest(
         try:
             db.migrate(conn)
             seed.load_vocabulary(conn)  # idempotent; resolution needs the starter vocabulary to match against
-            for path in scan(config.books_dir):
-                if only is not None and only.lower() not in path.name.lower():
-                    continue
+            for path in scan(config.books_dir) if books is None else books:
                 if approve is not None and not dry_run:
                     preview = _preview(conn, config, path, prompts, force_stage)
                     if preview is not None and preview.outcome != "failed" and not preview.kinds.get("recipe", 0):
@@ -117,6 +117,10 @@ def ingest(
                 report.books.append(book)
                 if show is not None:
                     show(book)
+                if stop_after is not None and book.outcome in ("ingested", "failed"):
+                    stop_after -= 1
+                    if stop_after <= 0:
+                        break
         finally:
             conn.close()
 
@@ -128,13 +132,43 @@ def ingest(
     return report
 
 
+def is_done(conn, path: Path, force_stage: str | None = None) -> bool:
+    """True when this exact file went through every stage that calls the model, so there is nothing left to do."""
+    source = sources.find_by_hash(conn, sources.file_sha256(path))
+    names = {stage.name for stage in (stages.TextStage(path), stages.SegmentStage(), stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage(), stages.LocalizeStage())}
+    return source is not None and source.status == "done" and force_stage is None and names <= sources.stages_run(conn, source)
+
+
+def read_queue(queue_path: Path) -> list[str]:
+    """File names, one per line; blank lines and lines starting with # are notes."""
+    try:
+        lines = queue_path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return []
+    return [line.strip() for line in lines if line.strip() and not line.strip().startswith("#")]
+
+
+def queue_status(config: Config) -> list[tuple[str, str]]:
+    """Each queued book with where it stands: done, waiting, or missing (not in the books folder)."""
+    names = read_queue(config.queue_path)
+    if not names:
+        return []
+    conn = db.connect(config.db_path) if config.db_path.exists() else db.connect(":memory:")
+    try:
+        db.migrate(conn)
+        rows = []
+        for name in names:
+            path = config.books_dir / name
+            rows.append((name, "missing" if not path.is_file() else "done" if is_done(conn, path) else "waiting"))
+        return rows
+    finally:
+        conn.close()
+
+
 def _preview(conn, config: Config, path: Path, prompts: PromptRegistry, force_stage: str | None) -> BookReport | None:
     """What ingesting this book would involve, worked out without calling the model or writing to the real database.
     None when there is nothing to do (already ingested, or skipped as a duplicate), so there is nothing to approve."""
-    file_hash = sources.file_sha256(path)
-    source = sources.find_by_hash(conn, file_hash)
-    stage_names = [s.name for s in (stages.TextStage(path), stages.SegmentStage(), stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage(), stages.LocalizeStage())]
-    if source is not None and source.status == "done" and force_stage is None and set(stage_names) <= sources.stages_run(conn, source):
+    if is_done(conn, path, force_stage):
         return None
     with tempfile.TemporaryDirectory() as scratch:
         throwaway = db.connect(":memory:")

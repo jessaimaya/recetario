@@ -375,3 +375,34 @@ def test_approval_mode_does_not_ask_about_a_book_with_no_recipes(config):
 
     assert asked == [] and [(b.outcome, "no recipes" in b.detail) for b in report.books] == [("skipped", True)]
     assert len(llm._inner.calls) == 0
+
+
+def test_the_queue_names_the_next_book_and_next_takes_one_at_a_time(config, tmp_path):
+    sample_book(config.books_dir / "a.epub", recipes=2)
+    sample_book(config.books_dir / "b.epub", recipes=3)
+    sample_book(config.books_dir / "c.epub", recipes=4)
+    queue = tmp_path / "queue.txt"
+    queue.write_text("# notes\n\nb.epub\nmissing.epub\na.epub\n")
+    config = Config(books_dir=config.books_dir, db_path=config.db_path, artifacts_dir=config.artifacts_dir, queue_path=queue)
+    prompts, llm = sample_llm()
+    assert ingest.queue_status(config) == [("b.epub", "waiting"), ("missing.epub", "missing"), ("a.epub", "waiting")]
+
+    waiting = [config.books_dir / "b.epub", config.books_dir / "a.epub"]
+    asked = []
+    first = ingest.ingest(config, llm=llm, prompts=prompts, books=waiting, stop_after=1, approve=lambda p: asked.append(p.file) or "yes")
+
+    assert asked == ["b.epub"] and [b.file for b in first.books] == ["b.epub"]  # stopped after one book
+    assert ingest.queue_status(config) == [("b.epub", "done"), ("missing.epub", "missing"), ("a.epub", "waiting")]
+
+
+def test_a_skipped_queue_book_passes_to_the_next_one(config):
+    sample_book(config.books_dir / "a.epub", recipes=2)
+    sample_book(config.books_dir / "b.epub", recipes=3)
+    prompts, llm = sample_llm()
+
+    report = ingest.ingest(
+        config, llm=llm, prompts=prompts, books=[config.books_dir / "a.epub", config.books_dir / "b.epub"], stop_after=1,
+        approve=lambda p: "skip" if p.file == "a.epub" else "yes",
+    )
+
+    assert [(b.file, b.outcome) for b in report.books] == [("a.epub", "skipped"), ("b.epub", "ingested")]

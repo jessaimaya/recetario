@@ -36,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
 
     run.add_argument("--book", help="only books whose file name contains this text (with --one-by-one)")
 
+    queue = commands.add_parser("queue", help="list the books in the queue file (local/queue.txt) and where each stands")
+    queue.add_argument("--config", type=Path)
+    nxt = commands.add_parser("next", help="take the first waiting book of the queue, size it up, ask, ingest it and show what it used")
+    nxt.add_argument("--config", type=Path)
+
     load_parser = commands.add_parser("load", help="write every finished book's recipes into the database again (after a review pass); calls no model")
     load_parser.add_argument("--config", type=Path)
 
@@ -68,6 +73,10 @@ def main(argv: list[str] | None = None) -> int:
         return _db_init(args.db, fresh=args.fresh, fixtures=args.fixtures)
     if args.command == "ingest":
         return _ingest(args.config, dry_run=args.dry_run, force_stage=args.force_stage, one_by_one=args.one_by_one, only=args.book)
+    if args.command == "queue":
+        return _queue(args.config)
+    if args.command == "next":
+        return _next(args.config)
     if args.command == "load":
         return _load(args.config)
     if args.command == "review":
@@ -222,13 +231,58 @@ def _ingest(config_path: Path | None, dry_run: bool, force_stage: str | None, on
         print("--dry-run already stops before any model call; drop --one-by-one", file=sys.stderr)
         return 2
     if one_by_one:
-        return _ingest_one_by_one(config, force_stage, only)
+        picked = None if only is None else [path for path in ingest.scan(config.books_dir) if only.lower() in path.name.lower()]
+        return _ingest_one_by_one(config, force_stage, picked)
     report = ingest.ingest(config, dry_run=dry_run, force_stage=force_stage)
     print(ingest.format_report(report, config))
     return 1 if any(book.outcome == "failed" for book in report.books) else 0
 
 
-def _ingest_one_by_one(config: config_module.Config, force_stage: str | None, only: str | None) -> int:
+def _load(config_path: Path | None) -> config_module.Config | None:
+    try:
+        return config_module.load_config(config_path)
+    except config_module.ConfigError as error:
+        print(error, file=sys.stderr)
+        return None
+
+
+def _queue(config_path: Path | None) -> int:
+    config = _load(config_path)
+    if config is None:
+        return 2
+    rows = ingest.queue_status(config)
+    if not rows:
+        print(f"the queue is empty: add file names, one per line, to {config.queue_path}")
+        return 0
+    first = next((name for name, state in rows if state == "waiting"), None)
+    for number, (name, state) in enumerate(rows, 1):
+        print(f"{number:3}. {state:8} {name}" + ("   <- next" if name == first else ""))
+    return 0
+
+
+def _next(config_path: Path | None) -> int:
+    """The first waiting book of the queue. A book you skip, or one with no recipes, passes to the one after it."""
+    config = _load(config_path)
+    if config is None:
+        return 2
+    if not sys.stdin.isatty():
+        print("next asks for approval on the terminal; run it in an interactive shell", file=sys.stderr)
+        return 2
+    rows = ingest.queue_status(config)
+    if not rows:
+        print(f"the queue is empty: add file names, one per line, to {config.queue_path}")
+        return 0
+    for name, state in rows:
+        if state == "missing":
+            print(f"not in {config.books_dir}, passed over: {name}", file=sys.stderr)
+    waiting = [config.books_dir / name for name, state in rows if state == "waiting"]
+    if not waiting:
+        print("every book in the queue is done")
+        return 0
+    return _ingest_one_by_one(config, None, waiting, stop_after=1)
+
+
+def _ingest_one_by_one(config: config_module.Config, force_stage: str | None, books: list[Path] | None = None, stop_after: int | None = None) -> int:
     """Each book: sized up for free, approved by the person, ingested, then what it used and the running total."""
     totals = {"books": 0, "in": 0, "out": 0, "usd": 0.0, "seconds": 0.0}
 
@@ -246,7 +300,7 @@ def _ingest_one_by_one(config: config_module.Config, force_stage: str | None, on
                 f"${totals['usd']:.4f} ({price}) · {totals['seconds'] / 60:.1f} min"
             )
 
-    report = ingest.ingest(config, force_stage=force_stage, approve=_ask_approval, show=show, only=only)
+    report = ingest.ingest(config, force_stage=force_stage, approve=_ask_approval, show=show, books=books, stop_after=stop_after)
     if not report.books:
         print(f"no books found in {config.books_dir}" if not ingest.scan(config.books_dir) else "stopped; nothing was sent to the model")
     return 1 if any(book.outcome == "failed" for book in report.books) else 0

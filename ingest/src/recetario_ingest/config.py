@@ -10,7 +10,7 @@ from recetario_ingest.db import REPO_ROOT
 
 DEFAULT_CONFIG_PATH = REPO_ROOT / "recetario.toml"
 
-_TOP_KEYS = {"books_dir", "db_path", "artifacts_dir", "evals_dir", "locale", "llm", "pricing"}
+_TOP_KEYS = {"books_dir", "db_path", "artifacts_dir", "queue_path", "evals_dir", "locale", "llm", "pricing"}
 _LLM_KEYS = {"provider", "model", "effort", "max_cost_usd"}
 
 
@@ -36,6 +36,7 @@ class Config:
     db_path: Path = REPO_ROOT / "local" / "recetario.db"
     artifacts_dir: Path = REPO_ROOT / "local" / "artifacts"
     evals_dir: Path = REPO_ROOT / "local" / "evals"
+    queue_path: Path = REPO_ROOT / "local" / "queue.txt"  # books to ingest, in order, one file name per line
     locale: str = "es-MX"
     provider: str = "anthropic"
     model: str | None = None  # no model means the stages that call one are skipped
@@ -67,6 +68,7 @@ def load_config(path: Path | None = None) -> Config:
         db_path=base / data["db_path"] if "db_path" in data else defaults.db_path,
         artifacts_dir=base / data["artifacts_dir"] if "artifacts_dir" in data else defaults.artifacts_dir,
         evals_dir=base / data["evals_dir"] if "evals_dir" in data else defaults.evals_dir,
+        queue_path=base / data["queue_path"] if "queue_path" in data else defaults.queue_path,
         locale=data.get("locale", defaults.locale),
         provider=llm.get("provider", defaults.provider),
         model=llm.get("model"),
