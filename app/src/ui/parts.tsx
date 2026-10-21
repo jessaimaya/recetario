@@ -27,7 +27,7 @@ export function shortTitle(title: string): string {
 
 /** "2 large plantains, peeled and sliced (about 1 lb)" → "large plantains"; "1/3 de taza de trocitos de tocino*" → "trocitos de tocino". */
 export function unresolvedName(line: string): string {
-  const name = splitLine(line).name.replace(/\([^)]*\)?/g, "").split(/[,;]| - /)[0]?.replace(/[*†‡]/g, "").replace(/^(?:de|del|of)\s+(?:la\s+|el\s+)?/i, "").trim();
+  const name = splitLine(line).name.replace(/\([^)]*\)?/g, "").split(/[,;]| - /)[0]?.replace(/[*†‡]/g, "").trim().replace(/^(?:de|del|of)\s+(?:la\s+|el\s+)?/i, "").trim();
   return name || line;
 }
 

@@ -38,6 +38,7 @@ describe("splitLine", () => {
 describe("unresolvedName", () => {
   test("drops the leading de, the footnote mark and the preparation", () => {
     expect(unresolvedName("1/3 de taza de trocitos de tocino* (como Hormel®)")).toBe("trocitos de tocino");
+    expect(unresolvedName("1 paquete (85 g) de trocitos de tocino*")).toBe("trocitos de tocino");
     expect(unresolvedName("2 plátanos grandes, pelados y rebanados")).toBe("plátanos grandes");
   });
 });
