@@ -53,8 +53,8 @@ def scan(books_dir: Path) -> list[Path]:
 
 
 # What a book costs the person to ingest, from the book's size: seconds of model time per recipe on each route
-# (measured on book 1: about 85 minutes for 285 recipes on the plan route, about 35 on the API).
-_MINUTES_PER_RECIPE = {"claude-code": 0.3, "anthropic": 0.12}
+# (plan route: 24 recipes took 12 minutes, 0.5 each, 2026-10-20; API: about 35 minutes for 285 recipes on book 1).
+_MINUTES_PER_RECIPE = {"claude-code": 0.5, "anthropic": 0.12}
 
 BookDecision = str  # "yes" | "skip" | "quit"
 
