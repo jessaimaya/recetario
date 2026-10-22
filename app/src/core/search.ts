@@ -1,29 +1,23 @@
 import { createMatcher } from "./match";
-import type { BlockReason, EntryId, RankedRecipe, RecipeForSearch, SearchData, SearchFilters } from "./types";
+import type { BlockReason, EntryId, RankedRecipe, RecipeForMatch, RecipeForSearch, SearchData, SearchFilters } from "./types";
 
 /**
  * Recipes I can make with what's on hand, missing at most `maxMissing` requirements.
  * Blocked recipes and duplicates are left out. Ranked by fewest missing, then quickest, then best rated.
  */
 export function search(filters: SearchFilters, data: SearchData): RankedRecipe[] {
-  const byId = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
-  const matcher = createMatcher({
-    catalog: data.catalog,
-    recipes: byId,
-    onHand: filters.onHand,
-    onHandText: filters.onHandText,
-    exclude: filters.excludeIngredients,
-  });
+  const matcher = matcherFor(filters, data);
 
   const found: { recipe: RecipeForSearch; ranked: RankedRecipe }[] = [];
   for (const recipe of data.recipes) {
     if (recipe.duplicateOf !== null) continue;
+    if (filters.course !== undefined && recipe.course !== filters.course) continue;
     if (filters.maxTotalMin !== undefined && (recipe.totalMin === null || recipe.totalMin > filters.maxTotalMin)) {
       continue;
     }
     const result = matcher(recipe);
     if (result.kind === "blocked" || result.missing.length > filters.maxMissing) continue;
-    found.push({ recipe, ranked: { recipeId: recipe.id, missing: result.missing } });
+    found.push({ recipe, ranked: { recipeId: recipe.id, missing: result.missing, ...(result.substitutions && { substitutions: result.substitutions }) } });
   }
 
   found.sort(
@@ -34,6 +28,18 @@ export function search(filters: SearchFilters, data: SearchData): RankedRecipe[]
       a.recipe.id - b.recipe.id,
   );
   return found.map(({ ranked }) => ranked);
+}
+
+function matcherFor(filters: SearchFilters, data: SearchData) {
+  const byId = new Map<number, RecipeForMatch>(data.recipes.map((recipe) => [recipe.id, recipe]));
+  return createMatcher({
+    catalog: data.catalog,
+    recipes: byId,
+    onHand: filters.onHand,
+    onHandText: filters.onHandText,
+    exclude: filters.excludeIngredients,
+    substitutes: filters.allowSubstitutes,
+  });
 }
 
 export interface Question {
@@ -77,11 +83,11 @@ export interface ClassificationQuestion {
  * either way helps: the ones that would unlock the most recipes come first.
  */
 export function classificationQuestions(filters: SearchFilters, data: SearchData, limit = 5): ClassificationQuestion[] {
-  const byId = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
-  const matcher = createMatcher({ catalog: data.catalog, recipes: byId, onHand: filters.onHand, onHandText: filters.onHandText, exclude: filters.excludeIngredients });
+  const matcher = matcherFor(filters, data);
   const questions = new Map<EntryId, ClassificationQuestion>();
   for (const recipe of data.recipes) {
     if (recipe.duplicateOf !== null) continue;
+    if (filters.course !== undefined && recipe.course !== filters.course) continue;
     const result = matcher(recipe);
     if (result.kind !== "blocked" || !result.blocks.every((block) => block.reason === "unclassified")) continue;
     const ids = new Set(result.blocks.flatMap((block) => block.ids));
@@ -99,11 +105,11 @@ export function classificationQuestions(filters: SearchFilters, data: SearchData
 
 /** How many recipes each block reason keeps out of the results (a recipe counts under its first reason). */
 export function blockedCounts(filters: SearchFilters, data: SearchData): Partial<Record<BlockReason, number>> {
-  const byId = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
-  const matcher = createMatcher({ catalog: data.catalog, recipes: byId, onHand: filters.onHand, onHandText: filters.onHandText, exclude: filters.excludeIngredients });
+  const matcher = matcherFor(filters, data);
   const counts: Partial<Record<BlockReason, number>> = {};
   for (const recipe of data.recipes) {
     if (recipe.duplicateOf !== null) continue;
+    if (filters.course !== undefined && recipe.course !== filters.course) continue;
     const result = matcher(recipe);
     if (result.kind !== "blocked") continue;
     const reason = result.blocks[0]?.reason;

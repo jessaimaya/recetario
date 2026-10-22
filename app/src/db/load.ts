@@ -2,7 +2,7 @@ import type { Availability, EntryId, RecipeForSearch, Requirement, SearchData } 
 import { LOCALE } from "./queries";
 
 /** The schema version this app reads (PRAGMA user_version, set by the Python migrations). */
-export const SCHEMA_VERSION = 3; // 3 only added duplicate_reviews, which the app does not read
+export const SCHEMA_VERSION = 6; // 3 only added duplicate_reviews and 4 recipe_lines.variant, neither read by the app; 5 added substitute_group; 6 recipes.course
 
 export type Row = Record<string, unknown>;
 
@@ -20,8 +20,10 @@ export function loadSearchData(db: Database): SearchData {
   // A merged entry stands for the entry it was merged into.
   const mergedInto = new Map<EntryId, EntryId>();
   const parentOf = new Map<EntryId, EntryId>();
-  for (const row of db.all("SELECT id, parent_id, merged_into_id FROM vocab_entries")) {
+  const substituteGroupOf = new Map<EntryId, string>();
+  for (const row of db.all("SELECT id, parent_id, merged_into_id, substitute_group FROM vocab_entries")) {
     if (row["merged_into_id"] !== null) mergedInto.set(num(row["id"]), num(row["merged_into_id"]));
+    else if (row["substitute_group"] !== null) substituteGroupOf.set(num(row["id"]), String(row["substitute_group"]));
     if (row["parent_id"] !== null) parentOf.set(num(row["id"]), num(row["parent_id"]));
   }
   const canonical = (id: EntryId): EntryId => {
@@ -42,7 +44,7 @@ export function loadSearchData(db: Database): SearchData {
 
   const recipes = new Map<number, RecipeForSearch>();
   const recipeRows = db.all(`
-    SELECT r.id, r.produces_id, r.total_min, r.duplicate_of,
+    SELECT r.id, r.produces_id, r.total_min, r.duplicate_of, r.course,
            (SELECT avg(rating) FROM cook_log AS c WHERE c.recipe_id = r.id) AS rating
     FROM recipes AS r ORDER BY r.id
   `);
@@ -54,6 +56,7 @@ export function loadSearchData(db: Database): SearchData {
       totalMin: row["total_min"] === null ? null : num(row["total_min"]),
       rating: row["rating"] === null ? null : num(row["rating"]),
       duplicateOf: row["duplicate_of"] === null ? null : num(row["duplicate_of"]),
+      course: row["course"] === null ? null : String(row["course"]),
     });
   }
 
@@ -107,7 +110,7 @@ export function loadSearchData(db: Database): SearchData {
     }
   }
 
-  return { catalog: { parentOf, availability, owned }, recipes: [...recipes.values()] };
+  return { catalog: { parentOf, availability, owned, substituteGroupOf }, recipes: [...recipes.values()] };
 }
 
 function num(value: unknown): number {

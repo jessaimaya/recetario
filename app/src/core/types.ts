@@ -27,6 +27,8 @@ export interface RecipeForSearch extends RecipeForMatch {
   /** Average cook-log rating, 1 to 5. */
   rating: number | null;
   duplicateOf: RecipeId | null;
+  /** The kind of dish (see `COURSES`); null until classified. */
+  course?: string | null;
 }
 
 /** Personal state: what I can buy and what I own, plus the hierarchy that relates entries. */
@@ -36,6 +38,8 @@ export interface Catalog {
   /** Ingredients not in the map are unknown. */
   availability: ReadonlyMap<EntryId, Availability>;
   owned: ReadonlySet<EntryId>;
+  /** ingredient → its substitute group ("olive oil" → "cooking oil"); members of one group can stand in for each other. */
+  substituteGroupOf?: ReadonlyMap<EntryId, string>;
 }
 
 export interface SearchData {
@@ -68,7 +72,14 @@ export interface Block {
   ids: number[];
 }
 
-export type MatchResult = { kind: "match"; missing: Need[] } | { kind: "blocked"; blocks: Block[] };
+/** A requirement covered by something else on hand: `using` stands in for `wanted`. */
+export interface Substitution {
+  wanted: EntryId;
+  using: EntryId;
+}
+
+/** `substitutions` is left out when there are none. */
+export type MatchResult = { kind: "match"; missing: Need[]; substitutions?: Substitution[] } | { kind: "blocked"; blocks: Block[] };
 
 /** Also the input schema of the natural-language search tool (M9), so keep it plain JSON. */
 export interface SearchFilters {
@@ -79,9 +90,14 @@ export interface SearchFilters {
   maxMissing: number;
   maxTotalMin?: number;
   excludeIngredients?: EntryId[];
+  /** Let a member of an ingredient's substitute group stand in for it. On unless set to false. */
+  allowSubstitutes?: boolean;
+  /** Only recipes of this course. Unclassified recipes are left out when it is set. */
+  course?: string;
 }
 
 export interface RankedRecipe {
   recipeId: RecipeId;
   missing: Need[];
+  substitutions?: Substitution[];
 }

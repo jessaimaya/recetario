@@ -110,3 +110,25 @@ describe("classificationQuestions", () => {
     expect(blockedCounts(filters(), unknownData)).toEqual({ unclassified: 4, unobtainable: 1 });
   });
 });
+
+describe("course filter", () => {
+  const withCourses: SearchData = {
+    catalog,
+    recipes: [
+      recipe(30, [ing(EGG)], { course: "desayuno" }),
+      recipe(31, [ing(EGG)], { course: "postre" }),
+      recipe(32, [ing(EGG)], { course: null }),
+      recipe(33, [ing(EGG), ing(SAFFRON)], { course: "postre" }),
+    ],
+  };
+
+  test("only recipes of that course are found, and unclassified ones are left out", () => {
+    expect(search({ onHand: [EGG], maxMissing: 0, course: "postre" }, withCourses).map((r) => r.recipeId)).toEqual([31]);
+    expect(search({ onHand: [EGG], maxMissing: 0 }, withCourses).map((r) => r.recipeId)).toEqual([30, 31, 32]);
+  });
+
+  test("blocked counts and questions only look at that course", () => {
+    expect(blockedCounts({ onHand: [EGG], maxMissing: 0, course: "desayuno" }, withCourses)).toEqual({});
+    expect(blockedCounts({ onHand: [EGG], maxMissing: 0, course: "postre" }, withCourses)).toEqual({ unobtainable: 1 });
+  });
+});

@@ -1,13 +1,14 @@
 import { useSignal } from "@preact/signals";
 
+import { COURSES, courseLabel } from "../core/courses";
 import { ASK_URL } from "../nl/client";
 import type { RankedRecipe } from "../core/types";
 import {
-  addTerms, answerAvailability, askQuestion, askStatus, asked, clearAsked, answerHave, answered, blocked, cards, dismiss, entryById, ingredients, maxMissing,
-  maxTotalMin, openQuestions, pantry, pantryExtras, pantryNote, removeExtra, results, setMaxMissing, setMaxTotalMin, slots, togglePantry,
+  addTerms, allowSubstitutes, courseCounts, courseFilter, answerAvailability, answerHaveAndObtainable, askQuestion, askStatus, asked, clearAsked, answerHave, answered, blocked, cards, dismiss, entryById, ingredients, maxMissing,
+  maxTotalMin, openQuestions, pantry, pantryExtras, pantryNote, results, setAllowSubstitutes, setCourseFilter, setMaxMissing, setMaxTotalMin, slots,
 } from "../store";
 import { findEntries } from "./find";
-import { Card, Empty, Segmented, count, minutes, needText } from "./parts";
+import { Card, CourseSelect, Empty, Segmented, Switch, count, distinctLabel, minutes, needText, swapText } from "./parts";
 import { useRail } from "./rail";
 
 const GROUP_LIMIT = 30;
@@ -44,6 +45,8 @@ export function Search() {
                 onChange={setMaxTotalMin}
               />
             </label>
+            <CourseSelect value={courseFilter.value} onChange={setCourseFilter} counts={courseCounts.value} />
+            <Switch checked={allowSubstitutes.value} label="Aceptar sustitutos (aceite por aceite, leche por leche…)" onChange={setAllowSubstitutes} />
           </div>
           <Questions />
         </>
@@ -110,7 +113,7 @@ function Asked() {
 
 function Pantry() {
   const query = useSignal("");
-  const chosen = [...pantry.value].map((id) => entryById.value.get(id)).filter((entry) => entry !== undefined);
+  const total = [...pantry.value].filter((id) => entryById.value.has(id)).length + pantryExtras.value.length;
   const typed = query.value.trim();
   const suggestions = typed === "" ? [] : findEntries(typed, ingredients.value.filter((entry) => !entry.isStaple && !pantry.value.has(entry.id)));
 
@@ -133,22 +136,11 @@ function Pantry() {
   return (
     <section aria-labelledby="pantry-title" class="pantry">
       <h2 id="pantry-title">En casa</h2>
-      <ul class="chips">
-        {chosen.map((entry) => (
-          <li key={entry.id}>
-            <button type="button" class="chip on" onClick={() => togglePantry(entry.id, false)} aria-label={`Quitar ${entry.label}`} title="Toca para quitar">
-              {entry.label}
-            </button>
-          </li>
-        ))}
-        {pantryExtras.value.map((term) => (
-          <li key={`extra:${term}`}>
-            <button type="button" class="chip pending" onClick={() => removeExtra(term)} aria-label={`Quitar ${term}, sin reconocer`} title="Aún no está en el vocabulario. Toca para quitar">
-              {term}
-            </button>
-          </li>
-        ))}
-      </ul>
+      {total > 0 && (
+        <p class="lede">
+          {count(total, "ingrediente", "ingredientes")} en casa. <a href="#/despensa">Verlos y editarlos en Despensa</a>
+        </p>
+      )}
       <form
         class="combo"
         onSubmit={(event) => {
@@ -211,7 +203,7 @@ function Questions() {
         return question.kind === "have" ? (
           <Card key={key} tone="ask">
             <p>
-              <strong>¿Tienes {entry.label}?</strong>
+              <strong>¿Tienes {distinctLabel(entry)}?</strong>
               <small> Con eso completas {count(question.count, "receta", "recetas")}.</small>
             </p>
             <div class="actions">
@@ -222,11 +214,12 @@ function Questions() {
         ) : (
           <Card key={key} tone="ask">
             <p>
-              <strong>¿{entry.label} se consigue por aquí?</strong>
+              <strong>¿{distinctLabel(entry)} se consigue por aquí?</strong>
               <small> Está en {count(question.count, "receta", "recetas")} que hoy no puedo evaluar.</small>
             </p>
             <div class="actions">
-              <button type="button" class="primary" onClick={() => answerAvailability(entry.id, "obtainable")}>Sí se consigue</button>
+              <button type="button" class="primary" onClick={() => answerHaveAndObtainable(entry.id)}>Sí, ya lo tengo</button>
+              <button type="button" onClick={() => answerAvailability(entry.id, "obtainable")}>Se consigue</button>
               <button type="button" onClick={() => answerAvailability(entry.id, "unobtainable")}>No se consigue</button>
               <button type="button" class="quiet" onClick={() => dismiss(key)}>Luego</button>
             </div>
@@ -267,9 +260,10 @@ function Group({ missing, list }: { missing: number; list: RankedRecipe[] }) {
               <a href={`#/receta/${recipe.id}`}>
                 <span class="title">{recipe.title}</span>
                 <span class="meta">
-                  {[minutes(recipe.totalMin), recipe.servings ? count(recipe.servings, "porción", "porciones") : null].filter(Boolean).join(" · ")}
+                  {[courseLabel(recipe.course), minutes(recipe.totalMin), recipe.servings ? count(recipe.servings, "porción", "porciones") : null].filter(Boolean).join(" · ")}
                 </span>
                 {result.missing.length > 0 && <span class="missing">Falta: {result.missing.map(needText).join(", ")}</span>}
+                {result.substitutions && <span class="swap">Con tu {swapText(result.substitutions)}</span>}
               </a>
             </li>
           );
@@ -294,6 +288,14 @@ function NoResults() {
     return (
       <Empty title="Empieza con lo que tienes">
         <p>Agrega arriba los ingredientes que hay en tu casa y te muestro lo que puedes cocinar.</p>
+      </Empty>
+    );
+  }
+  if (courseFilter.value !== undefined) {
+    const label = COURSES.find((course) => course.value === courseFilter.value)?.label ?? "ese tipo";
+    return (
+      <Empty title={`Nada de ${label.toLowerCase()} por ahora`}>
+        <p>Con lo que tienes no sale ninguna receta de ese tipo. En «Tipo de platillo» puedes ver cuántas hay de cada uno, o quitar el filtro.</p>
       </Empty>
     );
   }

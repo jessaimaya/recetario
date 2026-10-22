@@ -28,6 +28,10 @@ export const pantryNote = signal<string | null>(null);
 let noteParts: string[] = [];
 let noteAt = 0;
 export const maxMissing = signal(readNumber("maxMissing") ?? 1);
+/** Let an ingredient in the same substitute group stand in for the one a recipe names (olive oil for coconut oil). */
+/** Only recipes of this course on the search screen; undefined shows every kind of dish. */
+export const courseFilter = signal<string | undefined>(readText("course"));
+export const allowSubstitutes = signal((readNumber("allowSubstitutes") ?? 1) === 1);
 export const maxTotalMin = signal<number | undefined>(readNumber("maxTotalMin"));
 /** Questions dismissed for this visit. */
 export const dismissed = signal<ReadonlySet<string>>(new Set());
@@ -65,7 +69,7 @@ function wordsFor(ids: Iterable<EntryId>, extras: readonly string[]): string[] {
 const filters = computed(() => {
   const question = asked.value;
   if (question === null) {
-    return { onHand: [...pantry.value], onHandText: wordsFor(pantry.value, pantryExtras.value), maxMissing: maxMissing.value, maxTotalMin: maxTotalMin.value };
+    return { onHand: [...pantry.value], onHandText: wordsFor(pantry.value, pantryExtras.value), maxMissing: maxMissing.value, maxTotalMin: maxTotalMin.value, allowSubstitutes: allowSubstitutes.value, course: courseFilter.value };
   }
   return {
     onHand: question.have.map((entry) => entry.id),
@@ -73,7 +77,19 @@ const filters = computed(() => {
     excludeIngredients: question.exclude.map((entry) => entry.id),
     maxMissing: question.maxMissing,
     maxTotalMin: question.maxTotalMin,
+    allowSubstitutes: allowSubstitutes.value,
   };
+});
+/** How many recipes match right now in each course, ignoring the course filter, so the dropdown can say where results are. */
+export const courseCounts = computed(() => {
+  const counts = new Map<string, number>();
+  if (!searchData.value) return counts;
+  const byId = new Map(searchData.value.recipes.map((recipe) => [recipe.id, recipe.course ?? ""]));
+  for (const result of search({ ...filters.value, course: undefined }, searchData.value)) {
+    const course = byId.get(result.recipeId);
+    if (course) counts.set(course, (counts.get(course) ?? 0) + 1);
+  }
+  return counts;
 });
 export const results = computed(() => (searchData.value ? search(filters.value, searchData.value) : []));
 export const blocked = computed(() => (searchData.value ? blockedCounts(filters.value, searchData.value) : {}));
@@ -81,6 +97,14 @@ export const haveQuestions = computed(() => questionsToAsk(results.value, 8).fil
 export const classifyQuestions = computed(() =>
   searchData.value ? classificationQuestions(filters.value, searchData.value, 8).filter((q) => !dismissed.value.has(`classify:${q.entryId}`)) : [],
 );
+
+function readText(key: string): string | undefined {
+  try {
+    return localStorage.getItem(key) || undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function readNumber(key: string): number | undefined {
   try {
@@ -102,6 +126,20 @@ function remember(key: string, value: number | undefined): void {
 export function setMaxMissing(value: number): void {
   maxMissing.value = value;
   remember("maxMissing", value);
+}
+
+export function setCourseFilter(value: string | undefined): void {
+  courseFilter.value = value;
+  try {
+    localStorage.setItem("course", value ?? "");
+  } catch {
+    // a private window can refuse storage; the setting just won't stick
+  }
+}
+
+export function setAllowSubstitutes(value: boolean): void {
+  allowSubstitutes.value = value;
+  remember("allowSubstitutes", value ? 1 : 0);
 }
 
 export function setMaxTotalMin(value: number | undefined): void {
@@ -150,27 +188,60 @@ export function clearAsked(): void {
   });
 }
 
+/** Answers read from a stored database this app could no longer open (an older schema), kept for the next import. */
+let stalePersonalState: ReturnType<typeof readPersonalState> | null = null;
+
+async function checkDevDatabase(): Promise<void> {
+  if (!import.meta.env.DEV) return;
+  try {
+    devDatabaseAvailable.value = (await fetch("/dev/recetario.db", { method: "HEAD" })).ok;
+  } catch {
+    devDatabaseAvailable.value = false; // no dev server behind the page: nothing to offer
+  }
+}
+
 export async function bootstrap(): Promise<void> {
   try {
     const bytes = await readValue<Uint8Array>("db");
     if (bytes) {
-      await attach(bytes);
+      try {
+        await attach(bytes);
+        await checkDevDatabase();
+      } catch (error) {
+        await keepAnswers(bytes);
+        fail(error);
+        await checkDevDatabase();
+      }
       return;
     }
     status.value = "empty";
-    if (import.meta.env.DEV) devDatabaseAvailable.value = (await fetch("/dev/recetario.db", { method: "HEAD" })).ok;
+    await checkDevDatabase();
   } catch (error) {
     fail(error);
+  }
+}
+
+async function keepAnswers(bytes: Uint8Array): Promise<void> {
+  try {
+    const old = await openDatabase(bytes);
+    try {
+      stalePersonalState = readPersonalState(old);
+    } finally {
+      old.close();
+    }
+  } catch {
+    stalePersonalState = null; // not a readable database at all: nothing to carry
   }
 }
 
 export async function importBytes(bytes: Uint8Array): Promise<void> {
   try {
     // A new file from ingest knows nothing of what I answered in the app (what I can buy, what I own): bring it along.
-    const carried = database ? readPersonalState(database) : null;
+    const carried = database ? readPersonalState(database) : stalePersonalState;
     await attach(bytes, carried);
-    await writeValue("db", bytes);
-    if (carried) saveSoon();
+    stalePersonalState = null;
+    // what is stored is the new file with the carried answers in it, so a reload right after importing keeps them
+    await writeValue("db", database ? database.exportBytes() : bytes);
   } catch (error) {
     fail(error);
   }
@@ -291,6 +362,13 @@ export function dismiss(key: string): void {
   saveDismissed();
 }
 
+function undismiss(key: string): void {
+  const next = new Set(dismissed.value);
+  next.delete(key);
+  dismissed.value = next;
+  saveDismissed();
+}
+
 /** "Luego" and "No" are remembered between visits, by English name so they survive a new database file. */
 function saveDismissed(): void {
   const names = [...dismissed.value].flatMap((key) => {
@@ -330,11 +408,27 @@ export function resetDismissed(): void {
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 /** The database lives in memory, so after an edit the file is written back to the device a moment later. */
+let savePending = false;
+
 function saveSoon(): void {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    if (database) void writeValue("db", database.exportBytes());
-  }, 400);
+  savePending = true;
+  saveTimer = setTimeout(saveNow, 400);
+}
+
+/** Write the database now. Closing or reloading within the 400 ms wait of `saveSoon` would otherwise lose the last answers. */
+function saveNow(): void {
+  clearTimeout(saveTimer);
+  if (!savePending || !database) return;
+  savePending = false;
+  void writeValue("db", database.exportBytes());
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveNow();
+  });
+  addEventListener("pagehide", saveNow);
 }
 
 function refreshEntries(): void {
@@ -440,10 +534,30 @@ function clearAnswer(key: string): void {
 export function answerAvailability(entryId: EntryId, availability: "obtainable" | "unobtainable"): void {
   const entry = entryById.value.get(entryId);
   if (!entry) return;
+  // "Se consigue" here means "I can buy it, I don't have it now": that settles "¿Tienes X?" too, unless it was dismissed already
+  const settlesHave = availability === "obtainable" && !dismissed.value.has(`have:${entryId}`);
   // one batch: the slot must see the confirmation and the change together, or it would drop the answered question
   batch(() => {
     changeAvailability(entryId, availability);
-    confirm(`classify:${entryId}`, `${entry.label}: ${availability === "obtainable" ? "sí se consigue" : "no se consigue"}`, () => changeAvailability(entryId, "unknown"));
+    if (settlesHave) dismiss(`have:${entryId}`);
+    confirm(`classify:${entryId}`, `${entry.label}: ${availability === "obtainable" ? "sí se consigue" : "no se consigue"}`, () => {
+      changeAvailability(entryId, "unknown");
+      if (settlesHave) undismiss(`have:${entryId}`);
+    });
+  });
+}
+
+/** Having it means it can be had: one answer settles both questions, and undoing it takes both back. */
+export function answerHaveAndObtainable(entryId: EntryId): void {
+  const entry = entryById.value.get(entryId);
+  if (!entry) return;
+  batch(() => {
+    changeAvailability(entryId, "obtainable");
+    togglePantry(entryId, true);
+    confirm(`classify:${entryId}`, `Anotado: tienes ${entry.label} (y se consigue)`, () => {
+      togglePantry(entryId, false);
+      changeAvailability(entryId, "unknown");
+    });
   });
 }
 

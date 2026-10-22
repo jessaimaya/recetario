@@ -53,8 +53,14 @@ export function Data() {
         </section>
       )}
       {errorMessage.value && <p class="error" role="alert">{errorMessage.value}</p>}
-      {import.meta.env.DEV && devDatabaseAvailable.value && status.value !== "ready" && (
-        <button type="button" onClick={() => void importDevDatabase()}>Cargar la base local (solo desarrollo)</button>
+      {import.meta.env.DEV && devDatabaseAvailable.value && (
+        <section>
+          <h2>Base local (solo desarrollo)</h2>
+          <p class="lede">Vuelve a leer <code>local/recetario.db</code> después de correr <code>scripts/sync-db.sh</code>. Tus respuestas se conservan.</p>
+          <button type="button" class="primary" onClick={() => void importDevDatabase()}>
+            {status.value === "ready" ? "Actualizar desde la base local" : "Cargar la base local"}
+          </button>
+        </section>
       )}
     </div>
   );

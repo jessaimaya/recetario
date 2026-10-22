@@ -1,8 +1,9 @@
 import { useSignal } from "@preact/signals";
 
+import { courseLabel } from "../core/courses";
 import { cards, maxMissing, results, searchData } from "../store";
 import { fold } from "../text";
-import { Empty, Segmented, count, minutes, shortTitle } from "./parts";
+import { CourseSelect, Empty, Segmented, count, minutes, shortTitle } from "./parts";
 import { useRail } from "./rail";
 
 type Sort = "az" | "time";
@@ -12,14 +13,18 @@ export function Recipes() {
   const query = useSignal("");
   const sort = useSignal<Sort>("az");
   const source = useSignal("");
+  const course = useSignal<string | undefined>(undefined);
 
   const duplicates = new Set(searchData.value?.recipes.filter((recipe) => recipe.duplicateOf !== null).map((recipe) => recipe.id));
   const missing = new Map(results.value.map((result) => [result.recipeId, result.missing.length]));
   const all = [...cards.value.values()].filter((recipe) => !duplicates.has(recipe.id));
+  const courseTotals = new Map<string, number>();
+  for (const recipe of all) if (recipe.course) courseTotals.set(recipe.course, (courseTotals.get(recipe.course) ?? 0) + 1);
   const sources = [...new Set(all.map((recipe) => shortTitle(recipe.source)).filter((name) => name !== ""))];
 
   const needle = fold(query.value.trim());
   const list = all
+    .filter((recipe) => course.value === undefined || recipe.course === course.value)
     .filter((recipe) => source.value === "" || shortTitle(recipe.source) === source.value)
     .filter((recipe) => needle === "" || fold(recipe.title).includes(needle) || fold(recipe.titleOriginal).includes(needle))
     .sort((a, b) =>
@@ -41,6 +46,7 @@ export function Recipes() {
       <div class="toolbar">
         <input type="search" placeholder="Buscar por nombre…" value={query.value} onInput={(event) => (query.value = event.currentTarget.value)} aria-label="Buscar receta" />
         <Segmented label="Orden" value={sort.value} options={[{ value: "az", text: "A–Z" }, { value: "time", text: "Más rápidas" }]} onChange={(value) => (sort.value = value)} />
+        <CourseSelect value={course.value} onChange={(value) => (course.value = value)} counts={courseTotals} />
         {sources.length > 1 && (
           <label class="select">
             <span class="eyebrow">Libro</span>
@@ -70,7 +76,7 @@ export function Recipes() {
                     <a href={`#/receta/${recipe.id}`}>
                       <span class="title">{recipe.title}</span>
                       <span class="meta">
-                        {[minutes(recipe.totalMin), recipe.servings ? count(recipe.servings, "porción", "porciones") : null].filter(Boolean).join(" · ")}
+                        {[courseLabel(recipe.course), minutes(recipe.totalMin), recipe.servings ? count(recipe.servings, "porción", "porciones") : null].filter(Boolean).join(" · ")}
                       </span>
                       {status && <span class="missing">{status}</span>}
                     </a>

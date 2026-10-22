@@ -4,8 +4,9 @@ import preact from "@preact/preset-vite";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-/** Dev only: serves the repo's local database so `pnpm dev` shows data without importing a file first. */
-const LOCAL_DB = fileURLToPath(new URL("../local/recetario.db", import.meta.url));
+/** Dev only: serves the repo's local database so `pnpm dev` shows data without importing a file first.
+ *  Set RECETARIO_DEV_DB to serve another file. */
+const LOCAL_DB = process.env.RECETARIO_DEV_DB ?? fileURLToPath(new URL("../local/recetario.db", import.meta.url));
 function devDatabase(): Plugin {
   return {
     name: "recetario-dev-database",

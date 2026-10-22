@@ -1,8 +1,10 @@
 import { splitLine } from "./lines";
 import type { ComponentChildren } from "preact";
 
-import type { Need } from "../core/types";
-import { entryById, results } from "../store";
+import { COURSES } from "../core/courses";
+import type { Need, Substitution } from "../core/types";
+import type { Entry } from "../db/queries";
+import { entryById, ingredients, results } from "../store";
 
 export { fold } from "../text";
 
@@ -34,6 +36,35 @@ export function unresolvedName(line: string): string {
 export function needText(need: Need): string {
   if (need.unresolved !== undefined) return `${unresolvedName(need.unresolved)} (sin reconocer)`;
   return need.anyOf.map((id) => entryById.value.get(id)?.label ?? `#${id}`).join(" o ");
+}
+
+/** The entry's label, with its English name added when another ingredient reads the same ("col rizada (kale)"). */
+export function distinctLabel(entry: Entry): string {
+  const shared = ingredients.value.some((other) => other.id !== entry.id && other.label === entry.label);
+  return shared ? `${entry.label} (${entry.nameEn})` : entry.label;
+}
+
+/** A dropdown of the kinds of dish; an empty value means all of them. */
+export function CourseSelect(props: { value: string | undefined; onChange: (value: string | undefined) => void; counts?: ReadonlyMap<string, number> }) {
+  return (
+    <label class="select">
+      <span class="eyebrow">Tipo de platillo</span>
+      <select value={props.value ?? ""} onChange={(event) => props.onChange(event.currentTarget.value || undefined)}>
+        <option value="">Todos</option>
+        {COURSES.map((course) => (
+          <option key={course.value} value={course.value}>
+            {course.label}{props.counts ? ` · ${props.counts.get(course.value) ?? 0}` : ""}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** "aceite de oliva en lugar de aceite de coco, leche de soya en lugar de leche" */
+export function swapText(swaps: Substitution[]): string {
+  const label = (id: number) => entryById.value.get(id)?.label ?? `#${id}`;
+  return swaps.map((swap) => `${label(swap.using)} en lugar de ${label(swap.wanted)}`).join(", ");
 }
 
 export function Segmented<T extends string | number | undefined>(props: {

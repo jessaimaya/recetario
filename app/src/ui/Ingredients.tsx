@@ -2,7 +2,7 @@ import { useSignal } from "@preact/signals";
 
 import type { Availability } from "../core/types";
 import type { Entry } from "../db/queries";
-import { changeAvailability, ingredients, pantry, togglePantry } from "../store";
+import { changeAvailability, ingredients, pantry, pantryExtras, removeExtra, togglePantry } from "../store";
 import { DoneBar, Empty, Segmented, Switch, fold } from "./parts";
 import { useRail } from "./rail";
 
@@ -40,6 +40,21 @@ export function Ingredients() {
           onChange={(value) => (filter.value = value)}
         />
       </div>
+      {pantryExtras.value.length > 0 && (
+        <section aria-labelledby="extras-title">
+          <h2 id="extras-title">Sin reconocer</h2>
+          <p class="lede">Lo que escribiste y aún no está en el vocabulario. Cuenta para recetas que lo mencionan. Toca para quitar.</p>
+          <ul class="chips">
+            {pantryExtras.value.map((term) => (
+              <li key={term}>
+                <button type="button" class="chip pending" onClick={() => removeExtra(term)} aria-label={`Quitar ${term}, sin reconocer`}>
+                  {term}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {list.length === 0 ? (
         <Empty title="Sin resultados" />
       ) : (

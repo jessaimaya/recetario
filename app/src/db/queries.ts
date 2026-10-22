@@ -26,6 +26,7 @@ export interface RecipeCard {
   totalMin: number | null;
   servings: number | null;
   source: string;
+  course: string | null;
 }
 
 export interface RecipeLine {
@@ -94,7 +95,7 @@ export function loadEntries(db: Database): Entry[] {
 }
 
 const CARD_SQL = `
-  SELECT r.id, r.title_original, r.total_min, r.servings, lt.text AS title,
+  SELECT r.id, r.title_original, r.total_min, r.servings, r.course, lt.text AS title,
          COALESCE(s.display_title, s.raw_title) AS source
   FROM recipes AS r
   LEFT JOIN localized_texts AS lt ON lt.owner_kind = 'recipe_title' AND lt.owner_id = r.id AND lt.locale = ?
@@ -108,6 +109,7 @@ function card(row: Row): RecipeCard {
     totalMin: maybeNumber(row["total_min"]),
     servings: maybeNumber(row["servings"]),
     source: maybeText(row["source"]) ?? "",
+    course: maybeText(row["course"]),
   };
 }
 

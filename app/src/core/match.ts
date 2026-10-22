@@ -9,6 +9,7 @@ import type {
   RecipeForMatch,
   RecipeId,
   Requirement,
+  Substitution,
 } from "./types";
 
 export interface MatchInput {
@@ -19,6 +20,8 @@ export interface MatchInput {
   /** Words for what is on hand, folded (see `fold`); used only for lines the vocabulary hasn't resolved. */
   onHandText?: Iterable<string>;
   exclude?: Iterable<EntryId>;
+  /** Let members of an ingredient's substitute group stand in for it. Default true. */
+  substitutes?: boolean;
 }
 
 const BLOCK_ORDER: BlockReason[] = ["excluded", "unobtainable", "equipment", "unresolved", "unclassified"];
@@ -26,6 +29,7 @@ const BLOCK_ORDER: BlockReason[] = ["excluded", "unobtainable", "equipment", "un
 interface Evaluation {
   missing: Need[];
   blocks: Block[];
+  substitutions: Substitution[];
 }
 
 /**
@@ -33,6 +37,9 @@ interface Evaluation {
  *
  * Hierarchy: having (or owning, or being able to buy) a child covers a requirement for its parent
  * (cheddar covers "cheese"), never the other way round. Excluding a parent excludes its children.
+ *
+ * Substitutes: entries in the same substitute group stand in for each other ("canola oil" for "coconut oil"), on hand
+ * or to buy, unless `substitutes` is false. A substitute on hand is reported in the result.
  */
 export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => MatchResult {
   const { catalog, recipes } = input;
@@ -58,6 +65,16 @@ export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => Ma
   };
   const exclude = new Set(input.exclude ?? []);
   const isExcluded = (id: EntryId) => ancestorsOrSelf(id).some((a) => exclude.has(a));
+
+  const groupMembers = new Map<string, EntryId[]>();
+  if (input.substitutes !== false) {
+    for (const [id, group] of catalog.substituteGroupOf ?? []) groupMembers.set(group, [...(groupMembers.get(group) ?? []), id]);
+  }
+  /** The other members of the ingredient's substitute group that the search allows. */
+  const substitutesOf = (id: EntryId): EntryId[] => {
+    const group = catalog.substituteGroupOf?.get(id);
+    return group === undefined ? [] : (groupMembers.get(group) ?? []).filter((other) => other !== id && !isExcluded(other));
+  };
   const availabilityOf = (id: EntryId) =>
     obtainable.has(id) ? "obtainable" : (catalog.availability.get(id) ?? "unknown");
 
@@ -69,16 +86,28 @@ export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => Ma
     }
     const resolved = candidates.filter((id) => id !== null);
     if (resolved.some((id) => onHand.has(id))) return;
+    for (const wanted of resolved) {
+      const using = substitutesOf(wanted).find((other) => onHand.has(other));
+      if (using !== undefined) {
+        out.substitutions.push({ wanted, using });
+        return;
+      }
+    }
     const hasUnresolved = candidates.length > resolved.length;
     if (hasUnresolved && label !== undefined && coveredByWords(search ?? label)) return;
 
-    const buyable = resolved.filter((id) => availabilityOf(id) === "obtainable");
+    // What could be bought to cover it: the ingredient itself first, then its substitutes.
+    const pool = [...new Set([...resolved, ...resolved.flatMap(substitutesOf)])];
+    const buyable = pool.filter((id) => availabilityOf(id) === "obtainable");
     if (buyable.length > 0) {
       out.missing.push({ anyOf: buyable });
       return;
     }
+    // Ask about the ingredient itself first; its substitutes only once it is settled, so one question doesn't become five.
     const unknown = resolved.filter((id) => availabilityOf(id) === "unknown");
+    const unknownSubstitutes = pool.filter((id) => availabilityOf(id) === "unknown");
     if (unknown.length > 0) out.blocks.push({ reason: "unclassified", ids: unknown });
+    else if (unknownSubstitutes.length > 0) out.blocks.push({ reason: "unclassified", ids: unknownSubstitutes });
     else if (hasUnresolved) out.missing.push({ anyOf: [], unresolved: label ?? "" });
     else out.blocks.push({ reason: "unobtainable", ids: resolved });
   }
@@ -102,6 +131,7 @@ export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => Ma
     } else {
       // On a tie, making it wins: the shopping list is just as long and the ingredients are fresher.
       out.missing.push(...made.missing);
+      out.substitutions.push(...made.substitutions);
     }
   }
 
@@ -118,14 +148,15 @@ export function createMatcher(input: MatchInput): (recipe: RecipeForMatch) => Ma
   }
 
   function evaluate(recipe: RecipeForMatch, stack: RecipeId[]): Evaluation {
-    const out: Evaluation = { missing: [], blocks: [] };
+    const out: Evaluation = { missing: [], blocks: [], substitutions: [] };
     for (const req of recipe.requirements) requirement(recipe, req, stack, out);
     return out;
   }
 
   return (recipe) => {
-    const { missing, blocks } = evaluate(recipe, [recipe.id]);
-    return blocks.length > 0 ? { kind: "blocked", blocks: mergeBlocks(blocks) } : { kind: "match", missing: uniqueNeeds(missing) };
+    const { missing, blocks, substitutions } = evaluate(recipe, [recipe.id]);
+    if (blocks.length > 0) return { kind: "blocked", blocks: mergeBlocks(blocks) };
+    return { kind: "match", missing: uniqueNeeds(missing), ...(substitutions.length > 0 && { substitutions }) };
   };
 }
 
