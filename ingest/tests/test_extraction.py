@@ -97,6 +97,6 @@ def test_the_schema_requires_every_field_and_forbids_extras():
 
 
 def test_a_prompt_version_never_changes_once_released():
-    # v1 was scored against the golden set; editing its text would make old rows in EVALS.md meaningless
+    # v1 was scored against the golden set; editing its text would make old eval results meaningless
     assert EXTRACT_V1.fingerprint == "4214ea78e4ca"
     assert "{text}" in EXTRACT_V2.template and EXTRACT_V1.system != EXTRACT_V2.system

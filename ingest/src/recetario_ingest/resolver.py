@@ -15,7 +15,7 @@ from recetario_ingest.terms import TermExample
 from recetario_ingest.vocabulary import Candidate, Entry, Vocabulary, add_alias, create_proposal, find_proposal
 
 PROMPT_ID = "resolve"
-T_AUTO = 0.85  # a mapping at or above this confidence, onto a candidate we showed, is accepted without review (see EVALS.md)
+T_AUTO = 0.85  # a mapping at or above this confidence, onto a candidate we showed, is accepted without review (chosen with the resolver eval)
 
 RESOLVE_SCHEMA = {
     "type": "object",

@@ -27,3 +27,6 @@ dist/
 
 # Local config
 recetario.toml
+
+# Screen recordings
+*.mp4

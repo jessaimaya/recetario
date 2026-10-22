@@ -12,7 +12,7 @@ _PARENTHETICAL = re.compile(r"\([^)]*\)")
 _DIMENSIONS = re.compile(r"\b\d+(?:\.\d+)?\s*[”“\"']?\s*[x×]\s*\d+(?:\.\d+)?\s*[”“\"']?|\b\d+(?:\.\d+)?[- ]?(?:qt|quart|inch|in|cup)s?\b\.?")
 _EQUIPMENT_FILLER = {"big", "large", "small", "medium", "heavy", "deep", "shallow", "preheated", "greased", "prepared", "extra", "sized"}
 _NOT_PLURAL = {"asparagus", "hummus", "couscous", "molasses", "swiss", "citrus", "watercress", "cress", "grits", "oats", "bass", "lemongrass", "glass", "brass", "series"}
-# state words that don't change what you buy (NAMING.md: one entry, the form is preparation); "dried" stays
+# state words that don't change what you buy (one entry; the form is preparation); "dried" stays
 _INGREDIENT_FILLER = {"fresh", "frozen", "freshly", "raw", "uncooked"}
 _IRREGULAR_PLURALS = {"leaves": "leaf", "loaves": "loaf", "halves": "half", "knives": "knife"}
 _ES_ENDINGS = ("ches", "shes", "sses", "xes", "zes")

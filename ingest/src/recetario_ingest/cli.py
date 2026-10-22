@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     ev_extract.add_argument("--prompt", help="prompt version (default: the latest)")
     ev_extract.add_argument("--dry-run", action="store_true", help="count recipes and estimate input cost; call nothing")
 
-    ev_resolve = ev_commands.add_parser("resolve", help="score the resolver on golden terms (the NAMING.md trap list and more)")
+    ev_resolve = ev_commands.add_parser("resolve", help="score the resolver on golden terms (the naming trap list and more)")
     ev_resolve.add_argument("--config", type=Path)
     ev_resolve.add_argument("--cases", type=Path, help="folder of case files (default: evals/resolution)")
     ev_resolve.add_argument("--model", help="model to use instead of the one in the config")

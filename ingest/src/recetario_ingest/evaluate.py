@@ -159,7 +159,7 @@ def summarize(scores: list[CaseScore]) -> dict[str, float]:
 
 
 def results_row(summary: dict[str, float], date: str, prompt: str, model: str) -> str:
-    """One line for the results table in EVALS.md."""
+    """One line for the results table."""
     return (
         f"| {date} | {prompt} | {model} | {summary['title']:.2f} | "
         f"{summary['ingredients_p']:.2f} / {summary['ingredients_r']:.2f} | {summary['steps']:.2f} | {summary['meta']:.2f} | "
