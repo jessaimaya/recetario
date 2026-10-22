@@ -38,7 +38,7 @@ You don't need any of this to try the app. See "Try the app without any books" b
 ## Set it up
 
 ```sh
-git clone <this repository>
+git clone https://github.com/jessaimaya/recetario.git
 cd recetario
 
 cp .env.example .env                 # then put your key in it (see below)
