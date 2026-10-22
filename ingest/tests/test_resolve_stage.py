@@ -80,3 +80,15 @@ def test_term_counts_split_exact_auto_and_review():
         {"kind": "equipment", "method": "exact", "outcome": "resolved"},
     ]
     assert term_counts(items) == {"ingredient": {"exact": 1, "auto": 1, "review": 2}, "equipment": {"exact": 1, "auto": 0, "review": 0}}
+
+
+def test_parallel_workers_resolve_the_same_terms_as_one(setup):
+    conn, ctx, llm = setup
+    ctx.workers = 4
+
+    run = run_stages(conn, ctx, [ResolveStage()])
+
+    assert run.failures == [] and run.stages["resolve"].ok == 4
+    assert len(llm.inputs) == 2
+    assert Vocabulary(conn, "equipment").exact("cast iron skillet").name_en == "skillet"
+    assert find_proposal(conn, "equipment", "wok").status == "open"

@@ -143,3 +143,11 @@ def test_old_artifacts_with_echoed_hints_load_clean(conn, source):
     assert rows(conn, "SELECT l.text FROM localized_texts l JOIN raw_lines r ON r.id = l.owner_id WHERE l.owner_kind = 'raw_line' AND r.section = 'ingredients' ORDER BY r.position") == [
         ("2 libras de papa",), ("taza de aceite",), ("sal",),
     ]
+
+
+def test_the_form_asked_for_is_stored_as_the_variant_and_the_line_still_points_at_the_ingredient(conn, source):
+    load_recipes(conn, source.id, [artifact(ingredients=["2 cups boiling water", "1 can canned diced potatoes", "salt"])])
+
+    assert rows(conn, "SELECT e.name_en, rl.variant, rl.preparation_original FROM recipe_lines rl JOIN vocab_entries e ON e.id = rl.ingredient_id ORDER BY rl.id") == [
+        ("water", "boiling", None), ("potato", "canned", "diced"), ("salt", None, None),
+    ]

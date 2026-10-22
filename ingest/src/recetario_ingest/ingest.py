@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from recetario_ingest import db, epub, loader, pdf, seed, sources, stages
+from recetario_ingest import db, epub, loader, pdf, seed, sources, spend, stages
 from recetario_ingest.artifacts import ArtifactStore
 from recetario_ingest.config import Config
 from recetario_ingest.cost import cost_usd, estimate_tokens
@@ -16,9 +16,9 @@ from recetario_ingest.registry import default_prompts
 from recetario_ingest.llm.adapter import LlmAdapter
 from recetario_ingest.llm.factory import build_llm
 from recetario_ingest.llm.prompts import PromptRegistry
-from recetario_ingest.pipeline import Context, Stage, run_stages
+from recetario_ingest.pipeline import BookRun, Context, Stage, run_stages
 
-STAGE_NAMES = ("text", "segment", "extract", "lines", "resolve", "localize")
+STAGE_NAMES = ("text", "segment", "extract", "lines", "resolve", "localize", "classify")
 
 
 @dataclass
@@ -34,6 +34,7 @@ class BookReport:
     tokens_out: int = 0
     web_searches: int = 0
     cost_usd: float = 0.0
+    total_cost_usd: float = 0.0  # this book over all its runs, not just this one
     seconds: float = 0.0
     loaded: dict[str, int] = field(default_factory=dict)  # what load wrote (see loader.LoadReport)
     terms: dict[str, dict[str, int]] = field(default_factory=dict)  # kind -> {exact, auto, review} counts of unique terms
@@ -70,6 +71,7 @@ def ingest(
     show: Callable[[BookReport], None] | None = None,
     books: list[Path] | None = None,
     stop_after: int | None = None,
+    progress=None,
 ) -> RunReport:
     """Ingest every book in the books folder. A dry run does the free, local stages in a throwaway database and
     artifact folder, never calls the model, and leaves nothing behind.
@@ -113,7 +115,7 @@ def ingest(
                             continue
                     if hasattr(llm, "spent_usd"):
                         llm.spent_usd = 0.0  # type: ignore[union-attr]  # the cap is per book in this mode
-                book = _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts)
+                book = _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts, progress)
                 report.books.append(book)
                 if show is not None:
                     show(book)
@@ -135,7 +137,7 @@ def ingest(
 def is_done(conn, path: Path, force_stage: str | None = None) -> bool:
     """True when this exact file went through every stage that calls the model, so there is nothing left to do."""
     source = sources.find_by_hash(conn, sources.file_sha256(path))
-    names = {stage.name for stage in (stages.TextStage(path), stages.SegmentStage(), stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage(), stages.LocalizeStage())}
+    names = {stage.name for stage in (stages.TextStage(path), stages.SegmentStage(), stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage(), stages.LocalizeStage(), stages.ClassifyStage())}
     return source is not None and source.status == "done" and force_stage is None and names <= sources.stages_run(conn, source)
 
 
@@ -193,7 +195,7 @@ def _read_metadata(path: Path) -> epub.EpubMetadata:
     return epub.read_metadata(path)
 
 
-def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -> BookReport:
+def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts, progress=None) -> BookReport:
     started = time.monotonic()
     try:
         metadata = _read_metadata(path)
@@ -202,7 +204,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
 
     pipeline: list[Stage] = [stages.TextStage(path), stages.SegmentStage()]
     if llm is not None:
-        pipeline += [stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage(), stages.LocalizeStage()]
+        pipeline += [stages.ExtractStage(), stages.LinesStage(), stages.ResolveStage(), stages.LocalizeStage(), stages.ClassifyStage()]
     stage_names = [stage.name for stage in pipeline]
 
     file_hash = sources.file_sha256(path)
@@ -218,7 +220,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
 
     source = sources.set_status(conn, source, "in_progress")
     store = ArtifactStore(artifacts_dir / source.slug)
-    ctx = Context(source, store, prompts, llm, clock=time.monotonic, force_from=force_stage, conn=conn)
+    ctx = Context(source, store, prompts, llm, clock=time.monotonic, force_from=force_stage, conn=conn, progress=progress, workers=config.concurrency)
     run = run_stages(conn, ctx, pipeline)
 
     book = BookReport(
@@ -231,6 +233,7 @@ def _ingest_book(conn, config, artifacts_dir, path, force_stage, llm, prompts) -
         tokens_out=run.tokens_out,
         web_searches=run.web_searches,
         cost_usd=run.cost_usd,
+        total_cost_usd=spend.source_cost(conn, source.id),
         failures=run.failures,
     )
     if "segment" in run.stages and not run.stages["segment"].failed and run.stages["segment"].ok + run.stages["segment"].cached:
@@ -258,7 +261,8 @@ def _save_report(artifacts_dir: Path, report: RunReport) -> None:
 def load_book(conn, source: sources.Source, store: ArtifactStore) -> loader.LoadReport:
     """Write the book's recipes into the database from its artifacts and the current vocabulary."""
     localized = {item["recipe_key"]: item for item in store.read_all("localize") if item["status"] == "ok"}
-    return loader.load_recipes(conn, source.id, store.read_all("extract"), stages.split_parts(store), localized)
+    courses = {item["recipe_key"]: item["course"] for item in store.read_all("classify") if item.get("course")}
+    return loader.load_recipes(conn, source.id, store.read_all("extract"), stages.split_parts(store), localized, courses)
 
 
 def load_all(config: Config) -> list[tuple[str, loader.LoadReport]]:
@@ -268,6 +272,34 @@ def load_all(config: Config) -> list[tuple[str, loader.LoadReport]]:
         db.migrate(conn)
         done = [sources.Source(row["id"], row["file_hash"], row["raw_title"], row["status"]) for row in conn.execute("SELECT * FROM sources WHERE status = 'done'")]
         return [(source.raw_title, load_book(conn, source, ArtifactStore(config.artifacts_dir / source.slug))) for source in done]
+    finally:
+        conn.close()
+
+
+def classify_books(
+    config: Config, show: Callable[[str, BookRun], None] | None = None, llm: LlmAdapter | None = None, progress=None
+) -> list[tuple[str, BookRun]]:
+    """Give every finished book's recipes a course, running only that stage (cached recipes cost nothing), then load
+    the courses into the database. Books not yet ingested are left alone."""
+    if not config.model:
+        raise ValueError("classifying needs a model: set model under [llm] in recetario.toml")
+    prompts = default_prompts()
+    llm = llm or build_llm(config, prompts)
+    conn = db.connect(config.db_path)
+    try:
+        db.migrate(conn)
+        done = [sources.Source(row["id"], row["file_hash"], row["raw_title"], row["status"]) for row in conn.execute("SELECT * FROM sources WHERE status = 'done'")]
+        results = []
+        for source in done:
+            store = ArtifactStore(config.artifacts_dir / source.slug)
+            ctx = Context(source, store, prompts, llm, clock=time.monotonic, conn=conn, progress=progress, workers=config.concurrency)
+            run = run_stages(conn, ctx, [stages.ClassifyStage()])
+            if not run.failures:
+                load_book(conn, source, store)
+            results.append((source.raw_title, run))
+            if show is not None:
+                show(source.raw_title, run)
+        return results
     finally:
         conn.close()
 
@@ -301,6 +333,7 @@ def format_report(report: RunReport, config: Config) -> str:
                 f"tokens {book.tokens_in:,} in / {book.tokens_out:,} out · "
                 f"web searches {book.web_searches} · cost ${book.cost_usd:.4f}{listed} · {book.seconds:.1f}s"
             )
+            lines.append(f"  book total: ${book.total_cost_usd:.4f}{listed} over all runs" + (" (this run was a resume)" if book.total_cost_usd - book.cost_usd > 0.00005 else ""))
         if book.loaded:
             lines.append(
                 f"  loaded: {book.loaded['recipes']} recipes · {book.loaded['lines']} ingredient lines "

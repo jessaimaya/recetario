@@ -6,6 +6,7 @@ The same algorithm serves ingredients, equipment and attribute keys; only the gu
 
 import json
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 
 from recetario_ingest.llm.adapter import LlmAdapter, Usage
@@ -121,7 +122,8 @@ def build_input(kind: str, term: str, examples: list[TermExample], candidates: l
 
 
 class Resolver:
-    def __init__(self, conn: sqlite3.Connection, llm: LlmAdapter, version: str, source_id: int | None = None, t_auto: float = T_AUTO) -> None:
+    def __init__(self, conn: sqlite3.Connection, llm: LlmAdapter, version: str, source_id: int | None = None, t_auto: float = T_AUTO, lock=None) -> None:
+        self._lock = lock or threading.RLock()  # held for every use of the connection, never across the model call
         self._conn = conn
         self._llm = llm
         self._version = version
@@ -130,18 +132,21 @@ class Resolver:
 
     def resolve(self, kind: str, term: str, examples: list[TermExample]) -> Resolution:
         """`term` is already normalized (see terms.normalize_term)."""
-        vocabulary = Vocabulary(self._conn, kind)
-        known = vocabulary.exact(term)
-        if known is not None:
-            return Resolution(kind, term, "exact", "resolved", entry=known.name_en, confidence=1.0)
+        with self._lock:
+            vocabulary = Vocabulary(self._conn, kind)
+            known = vocabulary.exact(term)
+            if known is not None:
+                return Resolution(kind, term, "exact", "resolved", entry=known.name_en, confidence=1.0)
 
-        existing = find_proposal(self._conn, kind, term)
-        if existing is not None:  # decided or waiting: never ask (or pay) twice
-            return Resolution(kind, term, "existing_proposal", "proposed", proposal_id=existing.id, confidence=existing.confidence)
+            existing = find_proposal(self._conn, kind, term)
+            if existing is not None:  # decided or waiting: never ask (or pay) twice
+                return Resolution(kind, term, "existing_proposal", "proposed", proposal_id=existing.id, confidence=existing.confidence)
 
-        candidates = vocabulary.candidates(term)
-        result = self._llm.structured(PROMPT_ID, self._version, build_input(kind, term, examples, candidates, vocabulary), RESOLVE_SCHEMA)
-        return self._decide(kind, term, examples, candidates, vocabulary, result.data, result.usage)
+            candidates = vocabulary.candidates(term)
+            model_input = build_input(kind, term, examples, candidates, vocabulary)
+        result = self._llm.structured(PROMPT_ID, self._version, model_input, RESOLVE_SCHEMA)
+        with self._lock:
+            return self._decide(kind, term, examples, candidates, vocabulary, result.data, result.usage)
 
     def _decide(self, kind, term, examples, candidates, vocabulary, answer, usage) -> Resolution:
         confidence = float(answer["confidence"])

@@ -524,3 +524,40 @@ es-MX = "Azúcares (g)"
 type = "number"
 unit = "g"
 aliases.en = ["sugar", "sugars", "total sugars"]
+
+# --- Substitute groups -------------------------------------------------------
+# Ingredients in the same group can stand in for each other: having any member covers a recipe line for another.
+# Members are English names; one that isn't in the vocabulary (yet) is skipped, and an ingredient can be in one group only.
+# Leave out what changes the dish: sesame, truffle and almond oil, balsamic and sherry vinegar, coconut milk, green onion.
+
+[[substitute_group]]
+name = "cooking oil"
+members = ["olive oil", "vegetable oil", "canola oil", "avocado oil", "coconut oil"]
+
+[[substitute_group]]
+name = "butter"
+members = ["butter", "margarine"]
+
+[[substitute_group]]
+name = "milk"
+members = ["milk", "soy milk", "almond milk", "oat milk"]
+
+[[substitute_group]]
+name = "sugar"
+members = ["white sugar", "brown sugar", "sugar", "granulated sugar", "cane sugar"]
+
+[[substitute_group]]
+name = "citrus"
+members = ["lemon", "lime"]
+
+[[substitute_group]]
+name = "onion"
+members = ["onion", "yellow onion", "white onion", "red onion", "sweet onion"]
+
+[[substitute_group]]
+name = "broth"
+members = ["chicken broth", "chicken stock", "vegetable broth", "vegetable stock", "beef broth", "beef stock"]
+
+[[substitute_group]]
+name = "vinegar"
+members = ["white vinegar", "distilled white vinegar", "apple cider vinegar", "cider vinegar", "white wine vinegar", "red wine vinegar", "rice vinegar"]

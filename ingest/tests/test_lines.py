@@ -40,7 +40,9 @@ def test_a_range_keeps_both_ends():
 
 def test_container_size_in_brackets_is_kept_apart_from_the_unit():
     parsed = parse_line("1 (12 oz. ) package frozen French-cut green beans")
-    assert (parsed.qty, parsed.unit, parsed.container, parsed.name) == (1, "package", "12 oz", "frozen French-cut green beans")
+    assert (parsed.qty, parsed.unit, parsed.container, parsed.name, parsed.variant) == (
+        1, "package", "12 oz", "French-cut green beans", "frozen"
+    )
 
 
 def test_brands_and_asides_are_notes_not_part_of_the_name():
@@ -100,3 +102,21 @@ def test_normalize_term_drops_footnote_marks():
     from recetario_ingest.terms import normalize_term
 
     assert normalize_term("ingredient", "bacon bits*") == normalize_term("ingredient", "bacon bits")
+
+
+@pytest.mark.parametrize(
+    "raw, name, preparation, variant",
+    [
+        ("1 (14 oz) can canned diced tomatoes", "tomatoes", "diced", "canned"),
+        ("1 can canned diced tomatoes", "tomatoes", "diced", "canned"),
+        ("2 cups boiling water", "water", None, "boiling"),
+        ("1 cup hot water", "water", None, "hot"),
+        ("1 tbsp hot sauce", "hot sauce", None, None),
+        ("1 package frozen chopped spinach, thawed", "spinach", "chopped, thawed", "frozen"),
+        ("1 can dried beans", "dried beans", None, None),
+        ("1/4 cup finely chopped fresh basil", "fresh basil", "finely chopped", None),
+    ],
+)
+def test_form_words_in_front_of_the_name_become_the_variant(raw, name, preparation, variant):
+    parsed = parse_line(raw)
+    assert (parsed.name, parsed.preparation, parsed.variant) == (name, preparation, variant)

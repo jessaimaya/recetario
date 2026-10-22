@@ -10,9 +10,33 @@ locale = "es-MX"
 # "claude-code": the Claude Code CLI signed in with your plan, no API key (slower, counts against your plan's usage;
 #   set model to an alias such as "haiku"; max_cost_usd then caps the CLI's list-price estimate, and no [pricing] is needed).
 provider = "anthropic"
+# "openrouter": any model on OpenRouter (needs OPENROUTER_API_KEY; model is its id, e.g. "deepseek/deepseek-chat";
+#   the real cost is read from each reply, so [pricing] is optional; effort = "none" turns off thinking
+#   for hybrid models such as qwen/qwen3-30b-a3b, otherwise effort is ignored).
 # model = ""          # without a model, ingest stops after segmenting and the extract stage is skipped
 # effort = "low"      # output_config.effort: low | medium | high | xhigh | max
-# max_cost_usd = 5.0  # spending cap per run, checked before each call
+# max_cost_usd = 5.0  # spending cap per run, checked before each call (with several workers it can overshoot by a few calls)
+# concurrency = 4     # model calls in flight at once within a stage; 1 = one by one. A plan's usage limit then drains faster
+
+# Named settings to pick per run: `recetario-ingest next --profile haiku-api`. Any of the [llm] keys above.
+# --provider, --model and --workers on the command line override the profile (a new --provider needs its --model).
+[profiles.haiku-plan]
+provider = "claude-code"
+model = "haiku"
+effort = "none"
+concurrency = 4
+
+[profiles.haiku-api]
+provider = "anthropic"
+model = "claude-haiku-5-5"  # needs the [pricing] entry below
+effort = "none"
+concurrency = 8
+max_cost_usd = 2.0
+
+# [profiles.openrouter]
+# provider = "openrouter"
+# model = "deepseek/deepseek-chat"
+# concurrency = 8
 
 # USD per million tokens, copied from the provider's price page. Required for any run that calls the model
 # (cost tracking and the spending cap depend on it) and for the --dry-run cost estimate.

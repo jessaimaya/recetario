@@ -64,6 +64,10 @@ _PREPARATION_WORDS = {
     "julienned", "juiced", "zested", "firmly", "finely", "coarsely", "roughly", "thinly", "thickly", "freshly",
     "lightly", "uncooked", "unpeeled", "seeded", "pitted", "cored", "divided", "sifted", "squeezed", "torn", "quartered",
 }
+# words that say which form to buy or have, not a different product ("canned diced tomato" is still tomato); "fresh" is
+# the default form and "dried" is a different product, so neither is here
+_VARIANT_WORDS = {"canned", "frozen", "jarred", "boiling", "lukewarm"}
+_WATER_STATES = {"hot", "cold", "warm", "iced"}  # a variant only in front of water: "hot sauce" is a product
 _NOISE_TAILS = (
     r"or\s+(?:(?:more|less)\s+)?(?:as\s+)?(?:to\s+taste|needed|desired|required)",
     r"or\s+(?:more|less)",
@@ -90,6 +94,7 @@ class ParsedLine:
     container: str | None = None  # "12 oz" for "1 (12 oz.) can ..."
     name: str = ""
     preparation: str | None = None
+    variant: str | None = None  # "canned" for "canned diced tomato", "boiling" for "boiling water"
     optional: bool = False
     to_taste: bool = False
     notes: list[str] = field(default_factory=list)  # bracketed text that isn't "optional"
@@ -135,7 +140,7 @@ def parse_line(raw: str) -> ParsedLine:
         text = text[: noise.start()]
 
     head, _, tail = _split_preparation(text)
-    parsed.name, leading = _split_name(head)
+    parsed.name, leading, parsed.variant = _split_name(head)
     preparation = ", ".join(part for part in (leading, tail) if part)
     parsed.preparation = preparation or None
 
@@ -194,17 +199,24 @@ def _split_preparation(text: str) -> tuple[str, str, str]:
     return text[: match.start()].strip(), match.group(0), text[match.end() :].strip(" ,;")
 
 
-def _split_name(head: str) -> tuple[str, str]:
-    """Drop size words and move leading preparation words ("finely chopped fresh basil") out of the name."""
+def _split_name(head: str) -> tuple[str, str, str | None]:
+    """Drop size words, move leading preparation words ("finely chopped fresh basil") out of the name and
+    leading form words ("canned diced tomato") into the variant."""
     words = head.split()
-    leading = []
-    while words and (words[0].lower() in _SIZE_WORDS or words[0].lower() in _PREPARATION_WORDS):
-        word = words.pop(0)
-        if word.lower() not in _SIZE_WORDS:
-            leading.append(word)
+    leading, variants = [], []
+    while words:
+        word = words[0].lower()
+        if word in _SIZE_WORDS:
+            words.pop(0)
+        elif word in _PREPARATION_WORDS:
+            leading.append(words.pop(0))
+        elif len(words) > 1 and (word in _VARIANT_WORDS or (word in _WATER_STATES and words[1].lower() == "water")):
+            variants.append(words.pop(0).lower())
+        else:
+            break
     if words and words[0].lower() == "of":
         words.pop(0)
-    return " ".join(words), " ".join(leading)
+    return " ".join(words), " ".join(leading), " ".join(variants) or None
 
 
 def _why_model(parsed: ParsedLine) -> str | None:

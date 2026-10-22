@@ -37,16 +37,17 @@ def load_recipes(
     extractions: list[dict],
     splits: dict[str, list[dict]] | None = None,
     localized: dict[str, dict] | None = None,
+    courses: dict[str, str] | None = None,
 ) -> LoadReport:
-    """`extractions` are extract artifacts, `splits` maps a raw line to its parts (from the lines stage) and
-    `localized` maps a recipe key to its translation artifact."""
+    """`extractions` are extract artifacts, `splits` maps a raw line to its parts (from the lines stage),
+    `localized` maps a recipe key to its translation artifact and `courses` a recipe key to its course."""
     report = LoadReport()
     vocabulary = {kind: Vocabulary(conn, kind) for kind in ("ingredient", "equipment", "attribute_key")}
     with conn:
         for item in extractions:
             if not item.get("extracted"):
                 continue
-            recipe_id = _upsert_recipe(conn, source_id, item)
+            recipe_id = _upsert_recipe(conn, source_id, item, (courses or {}).get(item["recipe_key"]))
             report.recipes += 1
             raw_ids = _raw_lines(conn, recipe_id, item["extracted"])
             _recipe_lines(conn, raw_ids["ingredients"], item["extracted"]["ingredient_lines"], splits or {}, vocabulary["ingredient"], report)
@@ -57,20 +58,21 @@ def load_recipes(
     return report
 
 
-def _upsert_recipe(conn: sqlite3.Connection, source_id: int, item: dict) -> int:
+def _upsert_recipe(conn: sqlite3.Connection, source_id: int, item: dict, course: str | None) -> int:
     data = item["extracted"]
     status = "ok" if item["status"] == "ok" else "needs_review"
     (recipe_id,) = conn.execute(
         """
-        INSERT INTO recipes (source_id, locator, title_original, description_original, status)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO recipes (source_id, locator, title_original, description_original, status, course)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (source_id, locator) DO UPDATE SET
             title_original = excluded.title_original,
             description_original = excluded.description_original,
+            course = COALESCE(excluded.course, recipes.course),
             status = CASE WHEN recipes.status = 'ok' THEN 'ok' ELSE excluded.status END
         RETURNING id
         """,
-        (source_id, item["locator"], data["title"], data.get("description") or None, status),
+        (source_id, item["locator"], data["title"], data.get("description") or None, status, course),
     ).fetchone()
     return recipe_id
 
@@ -111,10 +113,10 @@ def _recipe_lines(conn, raw_ids: list[int], texts: list[str], splits: dict, voca
             entry = vocabulary.exact(normalize_term("ingredient", part["name"])) if part["name"] else None
             conn.execute(
                 """
-                INSERT INTO recipe_lines (raw_line_id, ingredient_id, qty, unit, preparation_original, is_optional, alt_group)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO recipe_lines (raw_line_id, ingredient_id, qty, unit, preparation_original, variant, is_optional, alt_group)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (raw_id, entry.id if entry else None, parsed.qty, parsed.unit, parsed.preparation, int(parsed.optional), group if alternatives else None),
+                (raw_id, entry.id if entry else None, parsed.qty, parsed.unit, parsed.preparation, parsed.variant, int(parsed.optional), group if alternatives else None),
             )
             report.lines += 1
             report.unresolved_lines += entry is None

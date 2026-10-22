@@ -8,7 +8,7 @@ from pathlib import Path
 from dataclasses import asdict
 
 from recetario_ingest import segment as segment_module
-from recetario_ingest import epub, extraction, line_split, lines, localize, pdf, resolver, segment, terms
+from recetario_ingest import classify, epub, extraction, line_split, lines, localize, pdf, resolver, segment, terms
 from recetario_ingest.vocabulary import Vocabulary
 from recetario_ingest.pipeline import Context, Stage, StageError, StageOutput, Unit
 
@@ -185,7 +185,7 @@ class ResolveStage(Stage):
     def run(self, ctx: Context, unit: Unit) -> StageOutput:
         kind, term, examples = unit.payload
         version = ctx.prompts.get(self.prompt_id).version
-        resolution = resolver.Resolver(ctx.conn, ctx.llm, version, ctx.source.id).resolve(kind, term, examples)
+        resolution = resolver.Resolver(ctx.conn, ctx.llm, version, ctx.source.id, lock=ctx.db_lock).resolve(kind, term, examples)
         return StageOutput(resolution.as_json(), resolution.usage)
 
 
@@ -223,6 +223,34 @@ class LocalizeStage(Stage):
             },
             result.usage,
         )
+
+
+class ClassifyStage(Stage):
+    """Recipe level, last on purpose: forcing it re-runs nothing else. One course per recipe from its title and ingredients.
+
+    A recipe the model can't place gets no course and the book still loads; `--force-stage classify` tries again.
+    """
+
+    name = "classify"
+    version = "1"
+    prompt_id = classify.PROMPT_ID
+
+    def units(self, ctx: Context) -> list[Unit]:
+        if ctx.llm is None:
+            raise StageError("no model is configured")
+        units = []
+        for item in ctx.store.read_all("extract"):
+            if not item["extracted"]:
+                continue
+            text = classify.recipe_text(item["extracted"])
+            units.append(Unit(key=item["recipe_key"], input_hash=_hash(text), payload=text))
+        return units
+
+    def run(self, ctx: Context, unit: Unit) -> StageOutput:
+        version = ctx.prompts.get(self.prompt_id).version
+        course, usage, problem = classify.classify_recipe(ctx.llm, version, unit.payload)
+        data = {"recipe_key": unit.key, "course": course, "prompt_version": version, "problem": problem}
+        return StageOutput(data, usage) if usage is not None else StageOutput(data)
 
 
 def recipe_for_translation(data: dict, vocabulary: dict[str, Vocabulary], splits: dict[str, list[dict]]) -> dict:

@@ -1,6 +1,7 @@
 """The only way stages talk to a model. A real provider and the fake satisfy the same protocol."""
 
 import json
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -64,7 +65,8 @@ class FakeLlm:
 class MeteredLlm:
     """Adds up the cost of the calls it forwards and refuses new ones once the spending cap is reached.
 
-    The cap is checked before each call, so the last call can overshoot it by its own cost.
+    The cap is checked before each call, so the last call can overshoot it by its own cost, or by one call per worker
+    when several run at once.
     """
 
     def __init__(self, inner: LlmAdapter, max_cost_usd: float | None) -> None:
@@ -72,10 +74,12 @@ class MeteredLlm:
         self._inner = inner
         self._max_cost_usd = max_cost_usd
         self.spent_usd = 0.0
+        self._lock = threading.Lock()
 
     def structured(self, prompt_id, version, input, schema, tools=()):
         if self._max_cost_usd is not None and self.spent_usd >= self._max_cost_usd:
             raise BudgetExceeded(f"spending cap of ${self._max_cost_usd:.2f} per run reached (spent ${self.spent_usd:.2f})")
         result = self._inner.structured(prompt_id, version, input, schema, tools)
-        self.spent_usd += result.usage.cost_usd
+        with self._lock:
+            self.spent_usd += result.usage.cost_usd
         return result

@@ -69,3 +69,39 @@ def test_dotenv_fills_missing_variables_but_never_overrides(tmp_path, monkeypatc
 
     assert (os.environ["NEW_KEY"], os.environ["KEPT"], "EMPTY" in os.environ) == ("abc", "from-shell", False)
     load_dotenv(tmp_path / "missing")  # no file is fine
+
+
+def _config_with_profiles(tmp_path):
+    (tmp_path / "c.toml").write_text(
+        '[llm]\nprovider = "claude-code"\nmodel = "haiku"\nconcurrency = 2\n\n'
+        '[profiles.haiku-api]\nprovider = "anthropic"\nmodel = "claude-haiku-5-5"\nconcurrency = 8\nmax_cost_usd = 1.5\n'
+    )
+    return load_config(tmp_path / "c.toml")
+
+
+def test_a_profile_replaces_the_llm_settings_it_names(tmp_path):
+    from recetario_ingest.config import choose_llm
+
+    chosen = choose_llm(_config_with_profiles(tmp_path), profile="haiku-api")
+
+    assert (chosen.provider, chosen.model, chosen.concurrency, chosen.max_cost_usd) == ("anthropic", "claude-haiku-5-5", 8, 1.5)
+
+
+def test_flags_override_the_profile_and_a_new_provider_needs_its_own_model(tmp_path):
+    from recetario_ingest.config import choose_llm
+
+    config = _config_with_profiles(tmp_path)
+
+    assert choose_llm(config, profile="haiku-api", workers=3).concurrency == 3
+    assert choose_llm(config, provider="openrouter", model="deepseek/deepseek-chat").model == "deepseek/deepseek-chat"
+    with pytest.raises(ConfigError, match="also give --model"):
+        choose_llm(config, provider="anthropic")
+    with pytest.raises(ConfigError, match="unknown profile 'nope'"):
+        choose_llm(config, profile="nope")
+
+
+def test_concurrency_must_be_a_positive_whole_number(tmp_path):
+    (tmp_path / "c.toml").write_text("[llm]\nconcurrency = 0\n")
+
+    with pytest.raises(ConfigError, match="concurrency"):
+        load_config(tmp_path / "c.toml")

@@ -1,13 +1,14 @@
 import itertools
 import sqlite3
+import time
 
 import pytest
 
 from recetario_ingest import db
 from recetario_ingest.artifacts import ArtifactStore
-from recetario_ingest.llm.adapter import FakeLlm
+from recetario_ingest.llm.adapter import BudgetExceeded, FakeLlm
 from recetario_ingest.llm.prompts import Prompt, PromptRegistry
-from recetario_ingest.pipeline import Context, Stage, StageError, StageOutput, Unit, run_stages
+from recetario_ingest.pipeline import Context, Stage, StageError, StageOutput, Unit, cache_key, run_stages
 from recetario_ingest.sources import Source
 
 
@@ -163,3 +164,50 @@ def test_stage_runs_record_status_and_unit(conn, ctx):
     run_stages(conn, ctx, [Counting([1])])
 
     assert rows(conn) == [("n1", "square", "ok"), ("n1", "square", "cached")]
+
+
+class Slow(Counting):
+    """Each unit waits, so only overlapping workers can finish the lot quickly."""
+
+    def run(self, ctx, unit):
+        time.sleep(0.2)
+        return super().run(ctx, unit)
+
+
+def test_workers_overlap_the_units_of_a_stage_and_give_the_same_results(conn, ctx):
+    ctx.workers = 4
+    started = time.monotonic()
+    run = run_stages(conn, ctx, [Slow(range(8))])
+
+    assert time.monotonic() - started < 1.0  # eight 0.2 s units one by one would take 1.6 s
+    assert (run.stages["square"].ok, run.failures) == (8, [])
+    assert sorted(ctx.store.read("square", f"n{n}") for n in range(8)) == [n * n for n in range(8)]
+    assert len(rows(conn)) == 8
+
+
+def test_parallel_runs_cache_and_report_failures_like_serial_ones(conn, ctx):
+    ctx.workers = 3
+    run_stages(conn, ctx, [Counting([1, 2], fail_on={2})])
+
+    retry = Counting([1, 2, 3])
+    run = run_stages(conn, ctx, [retry])
+
+    assert sorted(retry.ran) == [2, 3] and run.units_cached == 1
+
+
+def test_a_budget_stop_cancels_the_queue_but_keeps_what_was_in_flight(conn, ctx):
+    class Pricey(Counting):
+        def run(self, ctx, unit):
+            if unit.payload == 0:
+                raise BudgetExceeded("cap reached")
+            time.sleep(0.1)
+            return super().run(ctx, unit)
+
+    ctx.workers = 2
+    stage = Pricey(range(10))
+    run = run_stages(conn, ctx, [stage])
+
+    assert run.failures == ["square: cap reached"]
+    assert len(stage.ran) < 9  # the queued units never started
+    assert all(ctx.store.get("square", f"n{n}", cache_key(stage, ctx, Unit(f"n{n}", str(n)))) is not None for n in stage.ran)
+    assert len(rows(conn)) == len(stage.ran)

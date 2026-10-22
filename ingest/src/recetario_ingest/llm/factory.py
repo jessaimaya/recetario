@@ -6,6 +6,7 @@ from recetario_ingest.config import Config, ConfigError
 from recetario_ingest.llm.adapter import LlmAdapter, MeteredLlm
 from recetario_ingest.llm.claude import ClaudeLlm
 from recetario_ingest.llm.claude_code import ClaudeCodeLlm
+from recetario_ingest.llm.openrouter import OpenRouterLlm
 from recetario_ingest.llm.prompts import PromptRegistry
 
 
@@ -16,8 +17,13 @@ def build_llm(config: Config, prompts: PromptRegistry) -> MeteredLlm:
         if shutil.which("claude") is None:
             raise ConfigError('provider "claude-code" needs the Claude Code CLI: install it and sign in with your plan')
         return MeteredLlm(ClaudeCodeLlm(prompts, config.model, effort=config.effort), config.max_cost_usd)
+    if config.provider == "openrouter":
+        # OpenRouter reports what it charged, so a [pricing] entry is optional (it only feeds --dry-run estimates).
+        return MeteredLlm(OpenRouterLlm(prompts, config.model, config.pricing.get(config.model), effort=config.effort), config.max_cost_usd)
     if config.provider != "anthropic":
-        raise ConfigError(f"unsupported provider {config.provider!r}; use \"anthropic\" or \"claude-code\"")
+        raise ConfigError(
+            f"unsupported provider {config.provider!r}; use \"anthropic\", \"claude-code\" or \"openrouter\""
+        )
     pricing = config.pricing.get(config.model)
     if pricing is None:
         raise ConfigError(

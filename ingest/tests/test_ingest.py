@@ -240,7 +240,7 @@ def sample_llm(cost_per_call=0.0, cap=None):
         "new_entry": {"name_en": "new_key", "name_es_mx": "Nueva", "parent_en": "", "value_type": "number", "unit": ""},
         "confidence": 0.5, "reason": "test",
     }
-    responses = {"extract": perfect_extraction, "resolve": unsure, "localize": echo_localization}
+    responses = {"extract": perfect_extraction, "resolve": unsure, "localize": echo_localization, "classify": {"course": "plato_fuerte"}}
     return prompts, MeteredLlm(FakeLlm(prompts, responses, cost_per_call=cost_per_call), cap)
 
 
@@ -294,7 +294,7 @@ def test_a_recipe_the_model_gets_wrong_is_kept_for_review_not_dropped(config):
 
     sample_book(config.books_dir / "b.epub", recipes=2)
     prompts = default_prompts()
-    llm = FakeLlm(prompts, {"extract": {"title": "x", "description": "", "meta": [], "ingredient_lines": ["9 invented"], "steps": ["s"], "equipment_mentions": [], "extras": []}, "resolve": new_answer("invented", "inventado"), "localize": echo_localization})
+    llm = FakeLlm(prompts, {"extract": {"title": "x", "description": "", "meta": [], "ingredient_lines": ["9 invented"], "steps": ["s"], "equipment_mentions": [], "extras": []}, "resolve": new_answer("invented", "inventado"), "localize": echo_localization, "classify": {"course": "plato_fuerte"}})
 
     (book,) = ingest.ingest(config, llm=llm, prompts=prompts).books
 

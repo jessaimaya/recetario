@@ -42,7 +42,26 @@ def load_vocabulary(conn: sqlite3.Connection, path: Path = VOCABULARY_PATH) -> d
                     (parent_id, entry_id(conn, kind, item["en"])),
                 )
             counts[kind] = len(items)
+        counts["substitute"] = _apply_substitute_groups(conn, data.get("substitute_group", []))
     return counts
+
+
+def _apply_substitute_groups(conn: sqlite3.Connection, groups: list[dict]) -> int:
+    """Make the seed the only source of groups: clear them, then set each member that exists. Returns how many were set."""
+    seen: dict[str, str] = {}
+    for group in groups:
+        for name in group["members"]:
+            if name in seen:
+                raise ValueError(f"ingredient {name!r} is in two substitute groups: {seen[name]!r} and {group['name']!r}")
+            seen[name] = group["name"]
+    conn.execute("UPDATE vocab_entries SET substitute_group = NULL WHERE kind = 'ingredient'")
+    assigned = 0
+    for name, group_name in seen.items():
+        assigned += conn.execute(
+            "UPDATE vocab_entries SET substitute_group = ? WHERE kind = 'ingredient' AND name_en = ? AND merged_into_id IS NULL",
+            (group_name, name),
+        ).rowcount
+    return assigned
 
 
 def _upsert_entry(conn: sqlite3.Connection, kind: str, item: dict) -> None:

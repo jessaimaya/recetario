@@ -77,3 +77,13 @@ def test_building_the_model_needs_a_model_a_price_and_a_known_provider():
         build_llm(Config(model="m"), default_prompts())
     with pytest.raises(ConfigError, match="unsupported provider"):
         build_llm(Config(model="m", provider="other", pricing={"m": Pricing(1, 1)}), default_prompts())
+
+
+def test_effort_none_leaves_the_effort_out_of_the_request():
+    client = FakeClient()
+
+    ClaudeLlm(default_prompts(), "m", Pricing(2.0, 10.0), effort="none", client=client).structured(
+        "extract", "v1", "x", EXTRACTED_SCHEMA
+    )
+
+    assert client.requests[0]["output_config"] == {"format": {"type": "json_schema", "schema": EXTRACTED_SCHEMA}}

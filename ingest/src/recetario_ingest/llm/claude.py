@@ -29,7 +29,7 @@ class ClaudeLlm:
         self._pricing = pricing
         self._effort = effort
         self._max_tokens = max_tokens
-        self._client = client or anthropic.Anthropic()  # credentials come from the environment
+        self._client = client or anthropic.Anthropic(max_retries=6)  # credentials come from the environment; parallel workers meet 429s, which it retries with backoff
 
     def structured(self, prompt_id: str, version: str, input: str, schema: dict, tools: Sequence[str] = ()) -> LlmResult:
         if tools:
@@ -40,7 +40,8 @@ class ClaudeLlm:
             max_tokens=self._max_tokens,
             system=prompt.system,
             messages=[{"role": "user", "content": prompt.template.format(text=input)}],
-            output_config={"effort": self._effort, "format": {"type": "json_schema", "schema": schema}},
+            output_config=({} if self._effort == "none" else {"effort": self._effort})
+            | {"format": {"type": "json_schema", "schema": schema}},
         )
         usage = Usage(
             tokens_in=response.usage.input_tokens,
